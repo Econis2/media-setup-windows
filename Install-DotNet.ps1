@@ -74,9 +74,8 @@ $timer = [System.Diagnostics.Stopwatch]::new()
 $timer.Start()
 $x = 0
 while(!$installer.HasExited){
-    clear
+
     $Arrow = "=>"
-    Start-Sleep -Seconds 1
     Write-Host "H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)" -ForegroundColor Yellow
     # Moving Arrow
     if($x -lt 10){
@@ -88,6 +87,8 @@ while(!$installer.HasExited){
         $x = 0
     }
     Write-Host $Arrow -ForegroundColor Cyan
+    Start-Sleep -Seconds 1
+    clear
 }
 
 $timer.Stop()
