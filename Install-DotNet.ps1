@@ -79,17 +79,17 @@ catch {
 $timer = [System.Diagnostics.Stopwatch]::new()
 $timer.Start()
 $x = 0
-$Status = "Installing"
+$Status = "Installing..."
 while(!$proc.HasExited){
 
     Write-Progress -PercentComplete $x -Status $Status -Activity "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
 
     if($x -lt 100){
-        $x = $x + 5
-        $Status += "."
+        $x = $x++
+        #$Status += "."
     }
     elseif($x -eq 20){
-        $Status = "Installing"
+        #$Status = "Installing"
     }
     else{
         $x = 0
