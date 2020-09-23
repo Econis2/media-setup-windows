@@ -1,23 +1,21 @@
-param(
-    [Parameter(Mandatory=$true,Position=0)]
-    [string]$Path
-)
+function New-TempDirectory(){
 
-$Path += "\temp"
-try{ # Check for Temp Directory
-    Get-Item -Path $Path -ErrorAction Stop
-}
-catch {
-    try { # Crete Temp Directory
-        write-host "Creating Save Location"
-        $result = $(New-Item -Path $Path -ErrorAction Stop).FullName
+    $Path += "\temp"
+    try{ # Check for Temp Directory
+        Get-Item -Path $Path -ErrorAction Stop
     }
     catch {
-        Write-Error "Unable to write to Save Location: $Path"
+        try { # Crete Temp Directory
+            write-host "Creating Save Location"
+            $result = $(New-Item -Path $Path -ErrorAction Stop).FullName
+        }
+        catch {
+            Write-Error "Unable to write to Save Location: $Path"
+        }
     }
-}
 
-return $Path
+    return $Path
+}
 
 param(
     [Parameter(Mandatory=$true,Position=0)]
