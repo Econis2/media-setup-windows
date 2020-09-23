@@ -7,7 +7,7 @@ function New-TempDirectory($Path){
     catch {
         try { # Crete Temp Directory
             write-host "Creating Save Location" -ForegroundColor Green
-            $result = $(New-Item -Path $Path -ErrorAction Stop).FullName
+            $result = $(New-Item -Path $Path -ItemType Directory -ErrorAction Stop).FullName
         }
         catch {
             write-host "Unable to write to Save Location: $Path"
@@ -69,13 +69,40 @@ catch {
 try{ # Install .Net
     Write-Host "Installing .NET Version: $Version" -ForegroundColor Green
     Write-Host "Installation can take up to 10 minutes" -ForegroundColor Green
-    $installer = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
+    $proc = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
 }
 catch {
     write-host "Unable to Install .NET Version: $Version" -ForegroundColor Red
     write-host $_.Exception.Message -ForegroundColor Red
     Exit 500
 }
+
+$timer = [System.Diagnostics.Stopwatch]::new()
+$timer.Start()
+$x = 0
+$Status = "Installing"
+while(!$proc.HasExited){
+
+    Write-Progress -PercentComplete $x -Status $Status -Activity "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
+
+    if($x -lt 100){
+        $x = $x + 5
+        $Status += "."
+    }
+    elseif($x -eq 20){
+        $Status = "Installing"
+    }
+    else{
+        $x = 0
+    }
+
+    Start-Sleep -Seconds 1
+
+}
+
+$timer.Stop()
+
+Write-Host "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
 
 Remove-Item $regPath -Force -Recurse
 # Need to add a Run Once to Continue Script or move to next one
