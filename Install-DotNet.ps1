@@ -75,20 +75,17 @@ $timer.Start()
 $x = 0
 while(!$installer.HasExited){
 
-    $Arrow = "=>"
-    Write-Host "H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)" -ForegroundColor Yellow
-    # Moving Arrow
-    if($x -lt 10){
-        $Arrow = "=" + $Arrow
-        $x++
+    Write-Progress -PercentComplete $x -Activity "H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)"
+
+    if($x -lt 100){
+        $x = $x + 10
     }
     else{
-        $Arrow = "=>"
         $x = 0
     }
-    Write-Host $Arrow -ForegroundColor Cyan
+
     Start-Sleep -Seconds 1
-    clear
+
 }
 
 $timer.Stop()
