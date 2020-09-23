@@ -47,6 +47,13 @@ function Get-DotNetDownloadLink($init_url){
 }
 
 try{ # Download .Net
+    # Set the UAC to Allow Install of this File
+$regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
+
+    New-Item $regPath -Force
+    New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force
+    New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force
+
     $link = Get-DotNetDownloadLink($versions[$Version].init_url)
 
     Write-Host "Downloading .NET Version: $Version" -ForegroundColor Green
@@ -61,7 +68,7 @@ catch {
 
 try{ # Install .Net
     Write-Host "Installing .NET Version: $Version" -ForegroundColor Green
-    Write-Host "This can take up to 15 minutes....." -ForegroundColor Green
+    Write-Host "Installation can take up to 10 minutes" -ForegroundColor Green
     $installer = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
 }
 catch {
@@ -70,24 +77,6 @@ catch {
     Exit 500
 }
 
-$timer = [System.Diagnostics.Stopwatch]::new()
-$timer.Start()
-$x = 0
-while(!$installer.HasExited){
-
-    Write-Progress -PercentComplete $x -Activity "H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)"
-
-    if($x -lt 100){
-        $x = $x + 10
-    }
-    else{
-        $x = 0
-    }
-
-    Start-Sleep -Seconds 1
-
-}
-
-$timer.Stop()
-
-Write-Host "Installation completed in H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)" -ForegroundColor Green
+Remove-Item $regPath -Force -Recurse
+# Need to add a Run Once to Continue Script or move to next one
+# Prollay a running config file, that we can clean up later

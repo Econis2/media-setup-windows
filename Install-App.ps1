@@ -28,7 +28,9 @@ param(
 
     [Parameter(Mandatory=$true,Postition=1)]
     [ValidateSet("exe","msi","zip/exe","zip/msi")]
-    [string]$Installer_Type = "exe"
+    [string]$Installer_Type = "exe",
+
+    [string]$Arguments
 
 )
 
@@ -61,7 +63,46 @@ switch($PSCmdlet.ParameterSetName){
     }
 }
 
+# Set the UAC to Allow Install of this File
+$regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
+
+New-Item $regPath -Force
+New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force
+New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force
+
 # Install File
 try{
-    Start-Process -FilePath $APP_TEMP
+    $proc = Start-Process -FilePath $APP_TEMP -ArgumentList $Arguments -PassThru
 }
+catch {
+    Remove-Item $regPath -Force -Recurse
+}
+
+$timer = [System.Diagnostics.Stopwatch]::new()
+$timer.Start()
+$x = 0
+$Status = "Installing"
+while(!$proc.HasExited){
+
+    Write-Progress -PercentComplete $x -Status $Status -Activity "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
+
+    if($x -lt 100){
+        $x = $x + 5
+        $Status += "."
+    }
+    elseif($x -eq 20){
+        $Status = "Installing"
+    }
+    else{
+        $x = 0
+    }
+
+    Start-Sleep -Seconds 1
+
+}
+
+$timer.Stop()
+
+Write-Host "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
+
+Remove-Item $regPath -Force -Recurse
