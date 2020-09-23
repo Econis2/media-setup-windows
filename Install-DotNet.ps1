@@ -48,11 +48,10 @@ function Get-DotNetDownloadLink($init_url){
 
 try{ # Download .Net
     # Set the UAC to Allow Install of this File
-$regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
-
-    New-Item $regPath -Force
-    New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force
-    New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force
+    $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
+    New-Item $regPath -Force | out-null
+    New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force | out-null
+    New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force | out-null
 
     $link = Get-DotNetDownloadLink($versions[$Version].init_url)
 
