@@ -1,23 +1,23 @@
+param(
+    [Parameter(Mandatory=$true,Position=0)]
+    [string]$Path
+)
 
-function New-TempDirectory([string]$Path){
-    $Path += "\temp"
-    try{ # Check for Temp Directory
-        Get-Item -Path $Path -ErrorAction Stop
+$Path += "\temp"
+try{ # Check for Temp Directory
+    Get-Item -Path $Path -ErrorAction Stop
+}
+catch {
+    try { # Crete Temp Directory
+        write-host "Creating Save Location"
+        $result = $(New-Item -Path $Path -ErrorAction Stop).FullName
     }
     catch {
-        try { # Crete Temp Directory
-            write-host "Creating Save Location"
-            New-Item -Path $Path -ErrorAction Stop
-        }
-        catch {
-            Write-Error "Unable to write to Save Location: $Path"
-            Write-Error "$($_.Exception.Message)"
-        }
+        Write-Error "Unable to write to Save Location: $Path"
     }
-
-    return $Path
 }
 
+return $Path
 
 param(
     [Parameter(Mandatory=$true,Position=0)]
@@ -26,7 +26,8 @@ param(
 )
 
 $TEMP = New-TempDirectory($env:APPDATA)
-$APP_TEMP = "$TEMP\$Version.exe"
+$APP_NAME = "dotNET-$($Version.replace('.','_'))"
+$APP_TEMP = "$TEMP\$APP_NAME.exe"
 
 $Versions = @{
     "4.7.2" = @{
@@ -40,21 +41,25 @@ function Get-DotNetDownloadLink($init_url){
     }
     catch {
         Write-Error "Unable to Get Download Link"
-        Write-Error "$($_.Exception.Message)"
     }
 }
 
 try{ # Download .Net
     $link = Get-DotNetDownloadLink($versions[$Version].init_url)
-    Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -Error -ErrorAction Stop
+
+    Write-Host "Downloading .NET Version: $Version" -ForegroundColor Green
+
+    Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
 }
 catch {
     Write-Error "Unable to Download Dot Net Installer"
 }
 
-# try{ # Install .Net
-
-# }
-# catch {
-
-# }
+try{ # Install .Net
+    Write-Host "Installing .NET Version: $Version" -ForegroundColor Green
+    Write-Host "This can take up to 15 minutes....." -ForegroundColor Green
+    Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -Wait -ErrorAction Stop
+}
+catch {
+    Write-Error "Unable to Install .NET Version: $Version"
+}
