@@ -1,3 +1,9 @@
+param(
+    [Parameter(Mandatory=$true,Position=0)]
+    [ValidateSet("4.7.2")]
+    [string]$Version
+)
+
 function New-TempDirectory($Path){
 
     $Path += "\temp"
@@ -16,12 +22,6 @@ function New-TempDirectory($Path){
 
     return $Path
 }
-
-param(
-    [Parameter(Mandatory=$true,Position=0)]
-    [ValidateSet("4.7.2")]
-    [string]$Version
-)
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
