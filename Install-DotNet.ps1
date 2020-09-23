@@ -6,7 +6,7 @@ function New-TempDirectory($Path){
     }
     catch {
         try { # Crete Temp Directory
-            write-host "Creating Save Location"
+            write-host "Creating Save Location" -ForegroundColor Green
             $result = $(New-Item -Path $Path -ErrorAction Stop).FullName
         }
         catch {
@@ -62,10 +62,34 @@ catch {
 try{ # Install .Net
     Write-Host "Installing .NET Version: $Version" -ForegroundColor Green
     Write-Host "This can take up to 15 minutes....." -ForegroundColor Green
-    Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -Wait -ErrorAction Stop
+    $installer = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
 }
 catch {
     write-host "Unable to Install .NET Version: $Version" -ForegroundColor Red
     write-host $_.Exception.Message -ForegroundColor Red
     Exit 500
 }
+
+$timer = [System.Diagnostics.Stopwatch]::new()
+$timer.Start()
+$x = 0
+while(!$installer.HasExited){
+    clear
+    $Arrow = "=>"
+    Start-Sleep -Seconds 1
+    Write-Host "H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)" -ForegroundColor Yellow
+    # Moving Arrow
+    if($x -lt 10){
+        $Arrow = "=" + $Arrow
+        $x++
+    }
+    else{
+        $Arrow = "=>"
+        $x = 0
+    }
+    Write-Host $Arrow -ForegroundColor Cyan
+}
+
+$timer.Stop()
+
+Write-Host "Installation completed in H$($timer.Elapsed.Hours):M$($timer.Elapsed.Minutes):S$($timer.Elapsed.Seconds)" -ForegroundColor Green
