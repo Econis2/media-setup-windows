@@ -10,8 +10,9 @@ function New-TempDirectory([string]$Path){
             New-Item -Path $Path -ErrorAction Stop
         }
         catch {
-            Write-Error "Unable to write to Save Location: $Path"
-            Write-Error "$($_.Exception.Message)"
+            write-host "Unable to write to Save Location: $Path" -ForegroundColor Red
+            write-host "$($_.Exception.Message)" -ForegroundColor Red
+            Exit 500
         }
     }
 
@@ -21,16 +22,17 @@ function New-TempDirectory([string]$Path){
 function Install-App{
     param(
         [CmdletBinding(DefaultParameterSetName="Local")]
-        [Parameter(Mandatory=$true,Postition=0,ParameterSetName="Local")]
+        [Parameter(Mandatory=$true,Position=0,ParameterSetName="Local")]
         [string]$File_Path,
 
-        [Parameter(Mandatory=$true,Postition=0,ParameterSetName="Web")]
+        [Parameter(Mandatory=$true,Position=0,ParameterSetName="Web")]
         [string]$Download_Url,
 
-        [Parameter(Mandatory=$true,Postition=1)]
+        [Parameter(Position=1)]
         [ValidateSet("exe","msi","zip/exe","zip/msi")]
         [string]$Installer_Type = "exe",
 
+        [Parameter(Position=2)]
         [string]$Arguments
 
     )
@@ -54,8 +56,9 @@ function Install-App{
                 Invoke-WebRequest $Download_Path -OutFile $APP_TEMP -ErrorAction Stop
             }
             catch {
-                Write-Error "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]"
-                Write-Error "$($_.Exception.Message)"
+                write-host "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]" -ForegroundColor Red
+                write-host "$($_.Exception.Message)" -ForegroundColor Red
+                Exit 500
             }
         }
 
@@ -77,6 +80,7 @@ function Install-App{
     }
     catch {
         Remove-Item $regPath -Force -Recurse
+        Exit 500
     }
 
     $timer = [System.Diagnostics.Stopwatch]::new()
@@ -85,14 +89,10 @@ function Install-App{
     $Status = "Installing"
     while(!$proc.HasExited){
 
-        Write-Progress -PercentComplete $x -Status $Status -Activity "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
+        Write-Progress -PercentComplete $x -Activity $Status -Status "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
 
         if($x -lt 100){
             $x = $x + 5
-            $Status += "."
-        }
-        elseif($x -eq 20){
-            $Status = "Installing"
         }
         else{
             $x = 0
