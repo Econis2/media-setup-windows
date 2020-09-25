@@ -1,22 +1,5 @@
-function New-TempDirectory($Path){
-
-    $Path += "\temp"
-    try{ # Check for Temp Directory
-        Get-Item -Path $Path -ErrorAction Stop
-    }
-    catch {
-        try { # Crete Temp Directory
-            write-host "Creating Save Location" -ForegroundColor Green
-            $result = $(New-Item -Path $Path -ItemType Directory -ErrorAction Stop).FullName
-        }
-        catch {
-            write-host "Unable to write to Save Location: $Path"
-        }
-    }
-
-    return $Path
-}
-
+# Source Utilties
+. .\Utilties.ps1
 function Install-DotNet{
     param(
         [Parameter(Mandatory=$true,Position=0)]
@@ -108,4 +91,21 @@ function Install-DotNet{
     Remove-Item $regPath -Force -Recurse
     # Need to add a Run Once to Continue Script or move to next one
     # Prollay a running config file, that we can clean up later
+}
+
+function Confirm-DotNetVersion{
+    param(
+        [Parameter(Mandatory=$true,Position=0)]
+        [ValidateSet("4.7.2")]
+        [string]$Version
+    )
+
+    $Versions = @{
+        "4.7.2" = 41808
+    }
+
+    $dotNET_path = 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full'
+
+    return $(Get-ChildItem -Path $dotNET_path).GetValue('release') -gt $Versions[$version]
+
 }

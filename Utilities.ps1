@@ -33,11 +33,14 @@ function Install-App{
         [string]$Installer_Type = "exe",
 
         [Parameter(Position=2)]
-        [string]$Arguments
+        [string]$Arguments,
+
+        [Parameter(Position=3)]
+        [string]$Temp_Path = "$env:APPDATA\temp"
 
     )
 
-    [string]$TEMP = New-TempDirectory($env:APPDATA)
+    [string]$TEMP = $(New-TempDirectory($Temp_Path)).fullName
     [string]$APP_ID = $(New-Guid).Guid
     [string]$APP_TEMP = "$TEMP\$APP_ID."
 
@@ -107,4 +110,83 @@ function Install-App{
     Write-Host "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
 
     Remove-Item $regPath -Force -Recurse
+
+    return $null
+}
+
+function Set-Log{
+    param(
+        [ValidateSet("E","I")]
+        [string]$LogType = "I",
+
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+        [switch]$LogConsole = $false,
+        [string]$LogPath = $env:LOG_PATH
+        
+    )
+    if(!$LogPath){
+        $LogPath = "$env:APPDATA\temp\log"
+    }
+
+    if(!$(Get-Item $LogPath -ErrorAction SilentlyContinue)){
+        New-Item $LogPath -ItemType File
+    }
+    $type_string = "INFO"
+    $date = Get-Date
+    $dateTime_string = "[$($date.Year)-$($date.Month)-$($date.Day):$($date.Hour):$($date.Minute):$($date.Second)]"
+
+    switch($LogType){
+        "E" { $type_string = "ERROR"; $type_color = "Red" }
+        "W" { $type_String = "WARN"; $type_color = "Yellow"}
+        "I" { $type_string = "INFO"; $type_color = "Cyan" }
+    }
+
+    $out_message = "$dateTime_string[$type_string]$message"
+
+    Add-Content -Path $LogPath -Value $out_message
+
+    if($LogConsole){
+        Write-Host $out_message -ForegroundColor $type_color
+    }
+
+    return $null
+}
+
+function Set-AutoLogin{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$User,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Password
+    )
+    $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+
+    $Properties = @(
+        @{
+            keyName = "AutoAdminLogon"
+            keyValue = "1"
+        },
+        @{
+            keyName = "DefaultUsername"
+            keyValue = "$env:USERDOMAIN\$User"
+        },
+        @{
+            keyName = "DefaultPassword"
+            keyValue = $Password
+        }
+    )
+
+    $Properties.ForEach({
+        if(!$(Get-ItemProperty $key -Name $_.keyName)){
+            Set-Log -LogType I -Message "Creating Reg Key: $($_.keyName)" -LogConsole
+            New-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+        }
+        else{
+            Set-Log -LogType I -Message "Updating Reg Key: $($_.keyName)" -LogConsole
+            Set-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+        }
+    })
+
 }
