@@ -4,8 +4,8 @@ param(
 )
 
 # Import the Installer Function
-. .\Utilities.ps1
-. .\DotNet-Utilities.ps1
+. ".\Utilities.ps1"
+. ".\DotNet-Utilities.ps1"
 # Will Be YAML File Settings
 
 
