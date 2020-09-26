@@ -35,7 +35,10 @@ function Install-App{
         [string]$Arguments,
 
         [Parameter(Position=3)]
-        [string]$Temp_Path = "$env:APPDATA\temp"
+        [string]$Temp_Path = "$env:APPDATA\temp",
+
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
 
     )
 
@@ -60,7 +63,8 @@ function Install-App{
             }
             catch {
                 Set-Log -LogType E -Message "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]" -LogConsole
-                Return 500
+                $Result = 500
+                Return
             }
         }
         default{}
@@ -76,7 +80,8 @@ function Install-App{
     }
     catch {
         Set-Log -LogType E -Message "Error Preventing UAC Prompt" -LogConsole
-        Return 500
+        $Result = 500
+        return
     }
     
     # Install File
@@ -86,7 +91,8 @@ function Install-App{
     catch {
         Set-Log -LogType E -Message "Error installing Application from: $APP_TEMP" -LogConsole
         Remove-Item $regPath -Force -Recurse
-        Return 500
+        $Result = 500
+        return
     }
 
     $timer = [System.Diagnostics.Stopwatch]::new()
@@ -113,7 +119,8 @@ function Install-App{
 
     Remove-Item $regPath -Force -Recurse -ErrorAction SilentlyContinue
 
-    return 200
+    $Result = 200
+    return
 }
 
 function Set-Log{
@@ -161,7 +168,10 @@ function Set-AutoLogin{
         [string]$User,
 
         [Parameter(Mandatory=$true)]
-        [string]$Password
+        [string]$Password,
+
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
     )
 
     Set-Log -Message "Set Automatic Login" -LogType 'I' -LogConsole
@@ -187,27 +197,30 @@ function Set-AutoLogin{
         $Properties.ForEach({
             if(!$(Get-ItemProperty $key -Name $_.keyName -ErrorAction SilentlyContinue)){
                 Set-Log -LogType I -Message "Creating Reg Key: $($_.keyName)" -LogConsole
-                New-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+                New-ItemProperty $key -Name $_.keyName -Value $_.keyValue
             }
             else{
                 Set-Log -LogType I -Message "Updating Reg Key: $($_.keyName)" -LogConsole
-                Set-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+                Set-ItemProperty $key -Name $_.keyName -Value $_.keyValue
             }
         })
     }
     catch {
         Set-Log -LogType E -Message "Error Creating Auto Login Registry Keys" -LogConsole
         Set-Log -LogType E -Message $_.Exception.Message -LogConsole
-        return 500
+        $Result = 500
     }
 
-    return 200
+    $Result = 200
 }
 
 function Import-Config{
     param(
         [Parameter(Mandatory=$true)]
-        [string]$Path
+        [string]$Path,
+
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
     )
     try{
         $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)        
@@ -215,11 +228,9 @@ function Import-Config{
         
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
             if(!$CONFIG.$_ -or  $CONFIG.$_ -eq ""){
-                Write-Host "Setting $_ to NULL"
                 [System.Environment]::SetEnvironmentVariable($_ , $null, [System.EnvironmentVariableTarget]::Process)
             }
             else{
-                Write-Host "Setting $_ to $($CONFIG.$_)"
                 [System.Environment]::SetEnvironmentVariable($_ , $CONFIG.$_, [System.EnvironmentVariableTarget]::Process)
             } 
         })
@@ -227,16 +238,18 @@ function Import-Config{
     catch {
         Write-host "Error Setting Environment Variables" -ForegroundColor Red
         Write-host $_.Exception.Message -ForegroundColor Red
-        #Set-Log -LogType E -Message "Error Setting Environment Variables" -LogConsole
-        return 500
+        $Result = 500
     }
 
 
-    return 200
+    $Result = 200
 }
 
 function Initialize-Setup {
-    param()
+    param(
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
+    )
 
     $TEMPPATH = "$env:APPDATA\MediaStack"
     $LOGPATH = "$env:APPDATA\MediaStack\install-log"
@@ -249,7 +262,7 @@ function Initialize-Setup {
     $Environment_Requirements.forEach({
         if(![System.Environment]::GetEnvironmentVariable($_, [System.EnvironmentVariableTarget]::Process) -or [System.Environment]::GetEnvironmentVariable($_, [System.EnvironmentVariableTarget]::Process) -eq ""){
             Write-host "$_ is required to be set in the Config - add and try again." -ForegroundColor Red
-            Exit 500
+            $Result = 500
         }
     })
 
@@ -271,25 +284,27 @@ function Initialize-Setup {
         }
     })
 
-    if( !$(Get-Item -Path $env:TEMP_PATH -ItemType Directory -ErrorAction SilentlyContinue) ){
+    if( !$(Get-Item -Path $env:TEMP_PATH -ErrorAction SilentlyContinue) ){
         try{
-            New-Item -Path $env:TEMP_PATH -ItemType Directory
-            New-Item -Path $env:LOG_PATH -ItemType File
+            New-Item -Path $env:TEMP_PATH
+            New-Item -Path $env:LOG_PATH
         }
         catch {
             Write-Host "Unable to create Setup Directories" -ForegroundColor Red
             Write-Host $_.Exception.Message -ForegroundColor Red
-            Exit 500
+            $Result = 500
         }
     }
 
 
-    return 200
+    $Result = 200
 }
 
 function Set-RunOnce{
     param(
-        [int]$Stage = 0
+        [int]$Stage = 0,
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
     )
 
     $RUN_KEY = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
@@ -305,10 +320,10 @@ function Set-RunOnce{
         }
         catch {
             Set-Log -Message "Unable to set RunOnce Key" -LogType 'E' -LogConsole
-            return 500
+            $Result = 500
         }
     }
 
-    return 200
+    $Result =  200
 
 }

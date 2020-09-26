@@ -16,20 +16,29 @@ $SONARR_URL = ""
 
 switch($Stage){
     0 { #Install Pre-Req Stage
+        $Result = 0
+        Set-AutoLogin -User $env:DEFAULT_USER -Password $env:DEFAULT_PASSWORD -Result $Result
+        if( $Result -ne 200){ Exit 500 } # Create the User AutoLogin
         
-        if( $(Set-AutoLogin -User $env:DEFAULT_USER -Password $env:DEFAULT_PASSWORD) -ne 200){ Exit 500 } # Create the User AutoLogin
-            
-        if(!$(Confirm-DotNetVersion -Version $DOT_NET_VERSION) ){ # Check if Min .NET version is installed
+        $Result = $false
+        $(Confirm-DotNetVersion -Version $DOT_NET_VERSION -Result $Result)
+
+        if(!$Result){ # Check if Min .NET version is installed
             # Install .NET
-            if( $(Install-DotNet -Version $DOT_NET_VERSION) -ne 200 ){ Exit 500 }
+            $Result = 0
+            Install-DotNet -Version $DOT_NET_VERSION -Result $Result
+            if($Result -ne 200 ){ Exit 500 }
+            
             # Set Script to Run on Start
-            if( $(Set-RunOnce -Stage 1) -ne 200) { Exit 500 }
+            $Result = 0
+            Set-RunOnce -Stage 1 -Result $Result
+            if($Result -ne 200) { Exit 500 }
         }
         Set-Log -I -Message "Restarting Computer" -LogConsole
-        Restart-Computer 
+        #Restart-Computer 
     }
 
     1 { # Install Sonarr
-        Install-App -Download_Url $SONARR_URL -Installer_Type "exe" -Arguments "/Silent /VERYSILENT /NORESTART /SP-"
+        #Install-App -Download_Url $SONARR_URL -Installer_Type "exe" -Arguments "/Silent /VERYSILENT /NORESTART /SP-"
     }
 }

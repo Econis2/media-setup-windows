@@ -5,7 +5,10 @@ function Install-DotNet{
     param(
         [Parameter(Mandatory=$true,Position=0)]
         [ValidateSet("4.7.2")]
-        [string]$Version
+        [string]$Version,
+
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
     )
 
 
@@ -44,24 +47,27 @@ function Install-DotNet{
         $link = Get-DotNetDownloadLink($versions[$Version].init_url)
 
         if($link -ne 500){
-            Write-Host "Downloading .NET Version: $Version" -ForegroundColor Green
+            Set-Log -LogType I -Message "Downloading .NET Version: $Version" -LogConsole
             Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
         }
     }
     catch {
         Set-Log -LogType E -Message "Unable to Download Dot Net Installer" -LogConsole
-        return 500
+        $Result = 500
+        return
     }
 
     try{ # Install .Net
         Set-Log -LogType I -Message "Installing .NET Version: $Version" -LogConsole
-        Set-Log -LogType I -Message "Installation can take up to 10 minutes" -LogConsole
+        Set-Log -LogType W -Message "Installation can take up to 10 minutes" -LogConsole
 
         $proc = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
     }
     catch {
         Set-Log -LogType E -Message "Unable to Install .NET Version: $Version" -LogConsole
-        return 500
+        Set-Log -LogType E -Message $_.Exception.Message -LogConsole
+        $Result = 500
+        return
     }
 
     $timer = [System.Diagnostics.Stopwatch]::new()
@@ -74,10 +80,6 @@ function Install-DotNet{
 
         if($x -lt 100){
             $x = $x++
-            #$Status += "."
-        }
-        elseif($x -eq 20){
-            #$Status = "Installing"
         }
         else{
             $x = 0
@@ -88,21 +90,24 @@ function Install-DotNet{
     }
 
     $timer.Stop()
-
-    Write-Host "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
+     Set-Log -LogType 'I' -LogConsole -Message "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
 
     Remove-Item $regPath -Force -Recurse
     # Need to add a Run Once to Continue Script or move to next one
     # Prollay a running config file, that we can clean up later
 
-    return 200
+    $Result = 200
+    return
 }
 
 function Confirm-DotNetVersion{
     param(
         [Parameter(Mandatory=$true,Position=0)]
         [ValidateSet("4.7.2")]
-        [string]$Version
+        [string]$Version,
+
+        [Parameter(Mandatory=$true)]
+        [int][ref]$Result
     )
 
     $Versions = @{
@@ -112,7 +117,7 @@ function Confirm-DotNetVersion{
     Set-Log -Message "Checking for .NET v:$Version or greater" -LogType 'I' -LogConsole
 
     $dotNET_path = 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full'
-
-    return $(Get-ChildItem -Path $dotNET_path).GetValue('release') -gt $Versions[$version]
+    
+    return $(Get-ChildItem -Path $dotNET_path -ErrorAction SilentlyContinue).GetValue('release') -gt $Versions[$version]
 
 }
