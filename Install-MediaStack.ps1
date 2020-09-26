@@ -8,11 +8,11 @@ Import-Module ".\Utilities.psm1"
 Import-Module ".\DotNet-Utilities.psm1"
 # Will Be YAML File Settings
 $Result = 0
-Import-Config -Path ".\config.json" -Result $Result
+Import-Config -Path ".\config.json" -Result ([ref]$Result)
 if($Result -ne 200){ Exit 500 }
 
 $Result = 0
-Initialize-Setup -Result $Result
+Initialize-Setup -Result ([ref]$Result)
 if( $Result -ne 200 ){ Exit 500 }
 
 # Sonarr requires .NET 4.7.2 min
@@ -22,21 +22,18 @@ $SONARR_URL = ""
 switch($Stage){
     0 { #Install Pre-Req Stage
         $Result = 0
-        Set-AutoLogin -User $env:DEFAULT_USER -Password $env:DEFAULT_PASSWORD -Result $Result
+        Set-AutoLogin -User $env:DEFAULT_USER -Password $env:DEFAULT_PASSWORD -Result ([ref]$Result)
         if( $Result -ne 200){ Exit 500 } # Create the User AutoLogin
-        
-        $Result = $false
-        $(Confirm-DotNetVersion -Version $DOT_NET_VERSION -Result $Result)
 
-        if(!$Result){ # Check if Min .NET version is installed
+        if($(Confirm-DotNetVersion -Version $DOT_NET_VERSION)){ # Check if Min .NET version is installed
             # Install .NET
             $Result = 0
-            Install-DotNet -Version $DOT_NET_VERSION -Result $Result
+            Install-DotNet -Version $DOT_NET_VERSION -Result ([ref]$Result)
             if($Result -ne 200 ){ Exit 500 }
             
             # Set Script to Run on Start
             $Result = 0
-            Set-RunOnce -Stage 1 -Result $Result
+            Set-RunOnce -Stage 1 -Result ([ref]$Result)
             if($Result -ne 200) { Exit 500 }
         }
         Set-Log -I -Message "Restarting Computer" -LogConsole

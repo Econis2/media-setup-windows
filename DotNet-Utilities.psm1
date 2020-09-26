@@ -8,7 +8,7 @@ function Install-DotNet{
         [string]$Version,
 
         [Parameter(Mandatory=$true)]
-        [int][ref]$Result
+        [ref]$Result
     )
 
 
@@ -53,7 +53,8 @@ function Install-DotNet{
     }
     catch {
         Set-Log -LogType E -Message "Unable to Download Dot Net Installer" -LogConsole
-        $Result = 500
+        Set-Log -LogType E -Message $_.Exception.Message -LogConsole
+        $Result.Value = 500
         return
     }
 
@@ -66,7 +67,7 @@ function Install-DotNet{
     catch {
         Set-Log -LogType E -Message "Unable to Install .NET Version: $Version" -LogConsole
         Set-Log -LogType E -Message $_.Exception.Message -LogConsole
-        $Result = 500
+        $Result.Value = 500
         return
     }
 
@@ -90,13 +91,13 @@ function Install-DotNet{
     }
 
     $timer.Stop()
-     Set-Log -LogType 'I' -LogConsole -Message "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
+    Set-Log -LogType 'I' -LogConsole -Message "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
 
     Remove-Item $regPath -Force -Recurse
     # Need to add a Run Once to Continue Script or move to next one
     # Prollay a running config file, that we can clean up later
 
-    $Result = 200
+    $Result.Value = 200
     return
 }
 
@@ -104,10 +105,7 @@ function Confirm-DotNetVersion{
     param(
         [Parameter(Mandatory=$true,Position=0)]
         [ValidateSet("4.7.2")]
-        [string]$Version,
-
-        [Parameter(Mandatory=$true)]
-        [int][ref]$Result
+        [string]$Version
     )
 
     $Versions = @{
@@ -118,6 +116,11 @@ function Confirm-DotNetVersion{
 
     $dotNET_path = 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full'
     
-    return $(Get-ChildItem -Path $dotNET_path -ErrorAction SilentlyContinue).GetValue('release') -gt $Versions[$version]
+    $val = $(Get-ChildItem -Path $dotNET_path -ErrorAction SilentlyContinue)
+    if($val){
+        return $val.GetValue('release') -gt $Versions[$version]
+    }
+    
+    return $false
 
 }
