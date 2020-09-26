@@ -3,6 +3,8 @@ param(
     [int]$Stage = 0
 )
 
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # Import the Installer Function
 Import-Module ".\Utilities.psm1"
 Import-Module ".\DotNet-Utilities.psm1"
