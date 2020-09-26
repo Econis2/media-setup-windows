@@ -42,9 +42,13 @@ function Install-App{
 
     )
 
-    [string]$TEMP = $(New-TempDirectory($Temp_Path)).fullName
     [string]$APP_ID = $(New-Guid).Guid
-    [string]$APP_TEMP = "$TEMP\$APP_ID."
+
+    if(!$env:TEMP_PATH){
+        [string]$TEMP = $(New-TempDirectory($Temp_Path)).fullName
+        [string]$APP_TEMP = "$TEMP\$APP_ID."
+    }
+    else{ $APP_TEMP = "$env:TEMP_PATH\$APP_ID."}
 
     switch($Installer_Type){ # Set the Temp File path based on installer type
         ($Installer_Type.Contains("zip/")){
@@ -291,8 +295,8 @@ function Initialize-Setup {
 
     if( !$(Get-Item -Path $env:TEMP_PATH -ErrorAction SilentlyContinue) ){
         try{
-            New-Item -Path $env:TEMP_PATH
-            New-Item -Path $env:LOG_PATH
+            New-Item -Path $env:TEMP_PATH -ItemType Directory
+            New-Item -Path $env:LOG_PATH -ItemType File
         }
         catch {
             Write-Host "Unable to create Setup Directories" -ForegroundColor Red
@@ -322,11 +326,12 @@ function Set-RunOnce{
     }
     catch{
         try{
-            New-Item $RUN_KEY
+            New-Item $RUN_KEY -ErrorAction Stop
             Set-ItemProperty $RUN_KEY -Name "Stage_$Stage" -Value $ExecutionString -ErrorAction Stop
         }
         catch {
             Set-Log -Message "Unable to set RunOnce Key" -LogType 'E' -LogConsole
+            Set-Log -Message $_.Exception.Message -LogType 'E' -LogConsole
             $Result.Value = 500
             return
         }

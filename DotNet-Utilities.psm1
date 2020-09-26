@@ -11,12 +11,14 @@ function Install-DotNet{
         [ref]$Result
     )
 
-
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-    $TEMP = $(New-TempDirectory($env:APPDATA)).FullName
     $APP_NAME = "dotNET-$($Version.replace('.','_'))"
-    $APP_TEMP = "$TEMP\$APP_NAME.exe"
+    if(!$env:TEMP_PATH){
+        $TEMP = $(New-TempDirectory($env:APPDATA)).FullName
+        $APP_TEMP = "$TEMP\$APP_NAME.exe"
+    }
+    else{ $APP_TEMP = "$env:TEMP_PATH\$APP_NAME.exe"}
+
 
     $Versions = @{
         "4.7.2" = @{
@@ -30,6 +32,7 @@ function Install-DotNet{
         }
         catch {
             Set-Log -LogType E -Message "Unable to Get Download Link" -LogConsole
+            Set-Log -LogType E -Message $_.Exception.Message -LogConsole
             return 500
         }
     }
@@ -48,7 +51,9 @@ function Install-DotNet{
 
         if($link -ne 500){
             Set-Log -LogType I -Message "Downloading .NET Version: $Version" -LogConsole
-            Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
+            # Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
+            [System.Net.WebClient]::new().DownloadFile($Link,$APP_TEMP)
+
         }
     }
     catch {
