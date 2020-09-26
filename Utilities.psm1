@@ -197,6 +197,7 @@ function Set-AutoLogin{
     }
     catch {
         Set-Log -LogType E -Message "Error Creating Auto Login Registry Keys" -LogConsole
+        Set-Log -LogType E -Message $_.Exception.Message -LogConsole
         return 500
     }
 
@@ -213,18 +214,19 @@ function Import-Config{
         #load config
         
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
-            if(!$CONFIG[$_] -or  $CONFIG.$_ -eq ""){
+            if(!$CONFIG.$_ -or  $CONFIG.$_ -eq ""){
                 Write-Host "Setting $_ to NULL"
-                [System.Environment]::SetEnvironmentVariable($_ , $null, [System.EnvironmentVariableTarget]::Machine)
+                [System.Environment]::SetEnvironmentVariable($_ , $null, [System.EnvironmentVariableTarget]::Process)
             }
             else{
                 Write-Host "Setting $_ to $($CONFIG.$_)"
-                [System.Environment]::SetEnvironmentVariable($_ , $CONFIG.$_, [System.EnvironmentVariableTarget]::Machine)
+                [System.Environment]::SetEnvironmentVariable($_ , $CONFIG.$_, [System.EnvironmentVariableTarget]::Process)
             } 
         })
     }
     catch {
         Write-host "Error Setting Environment Variables" -ForegroundColor Red
+        Write-host $_.Exception.Message -ForegroundColor Red
         #Set-Log -LogType E -Message "Error Setting Environment Variables" -LogConsole
         return 500
     }
@@ -238,20 +240,19 @@ function Initialize-Setup {
 
     $TEMPPATH = "$env:APPDATA\MediaStack"
     $LOGPATH = "$env:APPDATA\MediaStack\install-log"
-    #Set-Log -LogType I -Message "Checking Required Config Settings" -LogConsole
+
     $Environment_Requirements = @(
         "DEFAULT_USER",
         "DEFAULT_PASSWORD"
     )
 
     $Environment_Requirements.forEach({
-        if(![System.Environment]::GetEnvironmentVariable($_, 'machine') -or [System.Environment]::GetEnvironmentVariable($_, 'machine') -eq ""){
-            #Set-Log -LogType E -Message "$_ is required to be set in the Config - add and try again." -LogConsole
+        if(![System.Environment]::GetEnvironmentVariable($_, [System.EnvironmentVariableTarget]::Process) -or [System.Environment]::GetEnvironmentVariable($_, [System.EnvironmentVariableTarget]::Process) -eq ""){
+            Write-host "$_ is required to be set in the Config - add and try again." -ForegroundColor Red
             Exit 500
         }
     })
 
-    #Set-Log -LogType I -Message "Loading Default Environment Variables" -LogConsole
     $Environment_Defaults = @(
         @{
             name = "TEMP_PATH"
@@ -265,8 +266,8 @@ function Initialize-Setup {
     )
     
     $Environment_Defaults.forEach({
-        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'machine') ){ # Load Default Settiings where Applicable
-            [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.EnvironmentVariableTarget]::Machine)
+        if( ![System.Environment]::GetEnvironmentVariable($_.name, [System.EnvironmentVariableTarget]::Process) ){ # Load Default Settiings where Applicable
+            [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.EnvironmentVariableTarget]::Process)
         }
     })
 
@@ -277,6 +278,7 @@ function Initialize-Setup {
         }
         catch {
             Write-Host "Unable to create Setup Directories" -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
             Exit 500
         }
     }
