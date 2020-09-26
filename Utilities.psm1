@@ -266,8 +266,8 @@ function Initialize-Setup {
     )
     
     $Environment_Defaults.forEach({
-        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'user') ){ # Load Default Settiings where Applicable
-            [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.SetEnvironmentVariableTarger]::User)
+        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'Machine') ){ # Load Default Settiings where Applicable
+            [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.EnvironmentVariableTarget]::Machine)
         }
     })
 
