@@ -7,7 +7,6 @@ param(
 Import-Module ".\Utilities.psm1"
 Import-Module ".\DotNet-Utilities.psm1"
 # Will Be YAML File Settings
-
 Import-Config -Path ".\config.json"
 Initialize-Setup
 

@@ -209,10 +209,12 @@ function Import-Config{
         [string]$Path
     )
     try{
-        Set-Log -LogType I -Message "Importing Config.." -LogConsole
+        #Set-Log -LogType I -Message "Importing Config.." -LogConsole
         $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)
+        
         #load config
-        Set-Log -LogType I -Message "Setting Environment Variables" -LogConsole
+        #Set-Log -LogType I -Message "Setting Environment Variables" -LogConsole
+        
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
             if(!$CONFIG[$_] -or  $CONFIG[$_] -eq ""){
                 [System.Environment]::SetEnvironmentVariable($_ , $null, [System.SetEnvironmentVariableTarger]::User)
@@ -223,7 +225,8 @@ function Import-Config{
         })
     }
     catch {
-        Set-Log -LogType E -Message "Error Setting Environment Variables" -LogConsole
+        Write-host "Error Setting Environment Variables" -ForegroundColor Red
+        #Set-Log -LogType E -Message "Error Setting Environment Variables" -LogConsole
         return 500
     }
 
@@ -236,7 +239,7 @@ function Initialize-Setup {
 
     $TEMPPATH = "$env:APPDATA\MediaStack"
     $LOGPATH = "$env:APPDATA\MediaStack\install-log"
-    Set-Log -LogType I -Message "Checking Required Config Settings" -LogConsole
+    #Set-Log -LogType I -Message "Checking Required Config Settings" -LogConsole
     $Environment_Requirements = @(
         "DEFAULT_USER",
         "DEFAULT_PASSWORD"
@@ -244,12 +247,12 @@ function Initialize-Setup {
 
     $Environment_Requirements.forEach({
         if(![System.Environment]::GetEnvironmentVariable($_, 'user') -or [System.Environment]::GetEnvironmentVariable($_, 'user') -eq ""){
-            Set-Log -LogType E -Message "$_ is required to be set in the Config - add and try again." -LogConsole
+            #Set-Log -LogType E -Message "$_ is required to be set in the Config - add and try again." -LogConsole
             return 500
         }
     })
 
-    Set-Log -LogType I -Message "Loading Default Environment Variables" -LogConsole
+    #Set-Log -LogType I -Message "Loading Default Environment Variables" -LogConsole
     $Environment_Defaults = @(
         @{
             name = "TEMP_PATH"
@@ -267,6 +270,18 @@ function Initialize-Setup {
             [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.SetEnvironmentVariableTarger]::User)
         }
     })
+
+    if( !$(Get-Item -Path $env:TEMP_PATH -ItemType Directory -ErrorAction SilentlyContinue) ){
+        try{
+            New-Item -Path $env:TEMP_PATH -ItemType Directory
+            New-Item -Path $env:LOG_PATH -ItemType File
+        }
+        catch {
+            Write-Host "Unable to create Setup Directories" -ForegroundColor Red
+            Exit 500
+        }
+    }
+
 
     return 200
 }
