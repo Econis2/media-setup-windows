@@ -222,7 +222,27 @@ function Set-AutoLogin{
     return
 }
 
-function Import-Config{
+function Import-MediaConfig{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+
+        [Parameter(Mandatory=$true)]
+        [ref]$Result        
+    )
+    try{
+        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw) -ErrorAction Stop
+        $Result.Value = $CONFIG
+        return
+    }
+    catch {
+        Write-host "Error Getting Media Config" -ForegroundColor Red
+        Write-host $_.Exception.Message -ForegroundColor Red
+        $Result.Value = 500
+        return
+    }
+}
+function Import-UserConfig{
     param(
         [Parameter(Mandatory=$true)]
         [string]$Path,
@@ -231,7 +251,7 @@ function Import-Config{
         [ref]$Result
     )
     try{
-        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)        
+        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)  -ErrorAction Stop      
         #load config
         
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
