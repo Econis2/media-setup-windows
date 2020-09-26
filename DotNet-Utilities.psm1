@@ -52,8 +52,8 @@ function Install-DotNet{
         if($link -ne 500){
             Set-Log -LogType I -Message "Downloading .NET Version: $Version" -LogConsole
             # Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
-            [System.Net.WebClient]::new().DownloadFile($Link,$APP_TEMP)
-
+            #[System.Net.WebClient]::new().DownloadFile($Link,$APP_TEMP)
+            Start-FileDownload -Url $Link -Path $APP_TEMP
         }
     }
     catch {

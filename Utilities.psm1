@@ -341,3 +341,48 @@ function Set-RunOnce{
     return
 
 }
+
+function Start-FileDownload{
+    param(
+        [Parameter(Mandatory=$true, Position=0)]
+        [string]$Url,
+
+        [Parameter(Mandatory=$true, Position=1)]
+        [string]$Path,
+
+        [string]$Name
+
+    )
+
+    if(!$Name -or $Name -eq ""){ $Name = $(New-Guid).Guid }
+    $APP_PATH = "$Path\$Name"
+    $PWSH_PATH = "$env:SystemRoot\system32\WindowsPowershell\v1.0\powershell.exe"
+    $command = @"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$WR = New-Object System.Net.WebClient
+$WR.DownloadFile($Url, $APP_PATH)
+$WR.Dispose()
+"@
+    $EncodedCommand = [Convert]::ToBase64String( ([System.Text.Encoding]::Unicode.GetBytes($command)) )
+    $proc = Start-Process -FilePath $PWSH_PATH -ArgumentList "-ExecutionPolicy Bypass","-encodedCommand $EncodedCommand" -PassThru
+
+    $timer = [System.Diagnostics.Stopwatch]::new()
+    $timer.Start()
+    $x = 0
+    $Status = "Installing"
+    while(!$proc.HasExited){
+
+        Write-Progress -PercentComplete $x -Activity $Status -Status "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
+
+        if($x -lt 100){
+            $x = $x + 5
+        }
+        else{
+            $x = 0
+        }
+
+        Start-Sleep -Seconds 1
+
+    }
+    $timer.Stop()
+}
