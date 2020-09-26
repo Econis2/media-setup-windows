@@ -1,5 +1,5 @@
 # Source Utilties
-# . ".\Utilties.ps1"
+
 Import-Module ".\Utilities.psm1"
 function Install-DotNet{
     param(
