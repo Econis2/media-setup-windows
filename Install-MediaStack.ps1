@@ -8,6 +8,8 @@ Import-Module ".\Utilities.psm1"
 Import-Module ".\DotNet-Utilities.psm1"
 # Will Be YAML File Settings
 
+Import-Config -Path ".\config.json"
+Initialize-Setup
 
 # Sonarr requires .NET 4.7.2 min
 $DOT_NET_VERSION = '4.7.2'
@@ -16,13 +18,13 @@ $SONARR_URL = ""
 switch($Stage){
     0 { #Install Pre-Req Stage
         
-        if( Set-AutoLogon -User $DEFAULT_USER -Password $DEFAULT_PASSWORD -ne 200){ Exit 500 } # Create the User AutoLogin
+        if( $(Set-AutoLogin -User $DEFAULT_USER -Password $DEFAULT_PASSWORD) -ne 200){ Exit 500 } # Create the User AutoLogin
             
-        if(!Confirm-DotNetVersion -Version $DOT_NET_VERSION){ # Check if Min .NET version is installed
+        if(!$(Confirm-DotNetVersion -Version $DOT_NET_VERSION) ){ # Check if Min .NET version is installed
             # Install .NET
-            if( Install-DotNet -Version $DOT_NET_VERSION -ne 200 ){ Exit 500 }
+            if( $(Install-DotNet -Version $DOT_NET_VERSION) -ne 200 ){ Exit 500 }
             # Set Script to Run on Start
-            if( Set-RunOnce -Stage 1 -ne 200) { Exit 500 }
+            if( $(Set-RunOnce -Stage 1) -ne 200) { Exit 500 }
         }
         Set-Log -I -Message "Restarting Computer" -LogConsole
         Restart-Computer 
