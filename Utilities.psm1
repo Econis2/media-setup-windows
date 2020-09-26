@@ -209,20 +209,17 @@ function Import-Config{
         [string]$Path
     )
     try{
-        #Set-Log -LogType I -Message "Importing Config.." -LogConsole
-        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)
-        
+        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)        
         #load config
-        #Set-Log -LogType I -Message "Setting Environment Variables" -LogConsole
         
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
-            if(!$CONFIG[$_] -or  $CONFIG[$_] -eq ""){
+            if(!$CONFIG[$_] -or  $CONFIG.$_ -eq ""){
                 Write-Host "Setting $_ to NULL"
-                [System.Environment]::SetEnvironmentVariable($_ , $null, [System.SetEnvironmentVariableTarger]::User)
+                [System.Environment]::SetEnvironmentVariable($_ , $null, [System.EnvironmentVariableTarget]::Machine)
             }
             else{
-                Write-Host "Setting $_ to $($CONFIG[$_])"
-                [System.Environment]::SetEnvironmentVariable($_ , $CONFIG[$_], [System.SetEnvironmentVariableTarger]::User)
+                Write-Host "Setting $_ to $($CONFIG.$_)"
+                [System.Environment]::SetEnvironmentVariable($_ , $CONFIG.$_, [System.EnvironmentVariableTarget]::Machine)
             } 
         })
     }
