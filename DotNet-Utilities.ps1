@@ -25,13 +25,15 @@ function Install-DotNet{
             return ($( Invoke-WebRequest -Uri $init_url -ErrorAction Stop ).Links | ?{ $_.outerHTML -like "*click here to download manually*"}).href
         }
         catch {
-            write-host "Unable to Get Download Link" -ForegroundColor Red
-            write-host $_.Exception.Message -ForegroundColor Red
-            Exit 500
+            Set-Log -LogType E -Message "Unable to Get Download Link" -LogConsole
+            return 500
         }
     }
 
+    Set-Log -Message "Installing .NET $Version" -LogType 'I' -LogConsole
+
     try{ # Download .Net
+        
         # Set the UAC to Allow Install of this File
         $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
         New-Item $regPath -Force | out-null
@@ -40,25 +42,25 @@ function Install-DotNet{
 
         $link = Get-DotNetDownloadLink($versions[$Version].init_url)
 
-        Write-Host "Downloading .NET Version: $Version" -ForegroundColor Green
-
-        Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
+        if($link -ne 500){
+            Write-Host "Downloading .NET Version: $Version" -ForegroundColor Green
+            Invoke-WebRequest -Uri $Link -OutFile $APP_TEMP -ErrorAction Stop
+        }
     }
     catch {
-        write-host "Unable to Download Dot Net Installer" -ForegroundColor Red
-        write-host $_.Exception.Message -ForegroundColor Red
-        Exit 500
+        Set-Log -LogType E -Message "Unable to Download Dot Net Installer" -LogConsole
+        return 500
     }
 
     try{ # Install .Net
-        Write-Host "Installing .NET Version: $Version" -ForegroundColor Green
-        Write-Host "Installation can take up to 10 minutes" -ForegroundColor Green
+        Set-Log -LogType I -Message "Installing .NET Version: $Version" -LogConsole
+        Set-Log -LogType I -Message "Installation can take up to 10 minutes" -LogConsole
+
         $proc = Start-Process -FilePath $APP_TEMP -ArgumentList "/q /norestart" -PassThru
     }
     catch {
-        write-host "Unable to Install .NET Version: $Version" -ForegroundColor Red
-        write-host $_.Exception.Message -ForegroundColor Red
-        Exit 500
+        Set-Log -LogType E -Message "Unable to Install .NET Version: $Version" -LogConsole
+        return 500
     }
 
     $timer = [System.Diagnostics.Stopwatch]::new()
@@ -91,6 +93,8 @@ function Install-DotNet{
     Remove-Item $regPath -Force -Recurse
     # Need to add a Run Once to Continue Script or move to next one
     # Prollay a running config file, that we can clean up later
+
+    return 200
 }
 
 function Confirm-DotNetVersion{
@@ -103,6 +107,8 @@ function Confirm-DotNetVersion{
     $Versions = @{
         "4.7.2" = 41808
     }
+
+    Set-Log -Message "Checking for .NET v:$Version or greater" -LogType 'I' -LogConsole
 
     $dotNET_path = 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full'
 

@@ -6,13 +6,12 @@ function New-TempDirectory([string]$Path){
     }
     catch {
         try { # Crete Temp Directory
-            write-host "Creating Save Location"
+            Set-Log -LogType I -Message "Creating Save Location" -LogConsole
             New-Item -Path $Path -ErrorAction Stop
         }
         catch {
-            write-host "Unable to write to Save Location: $Path" -ForegroundColor Red
-            write-host "$($_.Exception.Message)" -ForegroundColor Red
-            Exit 500
+            Set-Log -LogType I -Message "Unable to write to Save Location: $Path" -LogConsole
+            return 500
         }
     }
 
@@ -56,34 +55,38 @@ function Install-App{
     switch($PSCmdlet.ParameterSetName){
         "Web" {
             try { # Download EXE and set File Path
+                Set-Log -LogType I -Message "Downloading Application" -LogConsole
                 Invoke-WebRequest $Download_Path -OutFile $APP_TEMP -ErrorAction Stop
             }
             catch {
-                write-host "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]" -ForegroundColor Red
-                write-host "$($_.Exception.Message)" -ForegroundColor Red
-                Exit 500
+                Set-Log -LogType E -Message "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]" -LogConsole
+                Return 500
             }
         }
-
-        default{
-            write-host "Default: "
-        }
+        default{}
     }
 
-    # Set the UAC to Allow Install of this File
-    $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
+    try{# Set the UAC to Allow Install of this File
+        Set-Log -LogType I -Message "Preventing UAC Prompt" -LogConsole
+        $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
 
-    New-Item $regPath -Force
-    New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force
-    New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force
-
+        New-Item $regPath -Force
+        New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force
+        New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force
+    }
+    catch {
+        Set-Log -LogType E -Message "Error Preventing UAC Prompt" -LogConsole
+        Return 500
+    }
+    
     # Install File
     try{
         $proc = Start-Process -FilePath $APP_TEMP -ArgumentList $Arguments -PassThru
     }
     catch {
+        Set-Log -LogType E -Message "Error installing Application from: $APP_TEMP" -LogConsole
         Remove-Item $regPath -Force -Recurse
-        Exit 500
+        Return 500
     }
 
     $timer = [System.Diagnostics.Stopwatch]::new()
@@ -106,12 +109,11 @@ function Install-App{
     }
 
     $timer.Stop()
+    Set-Log -LogType I -Message "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -LogConsole
 
-    Write-Host "Installation completed in [Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)" -ForegroundColor Green
+    Remove-Item $regPath -Force -Recurse -ErrorAction SilentlyContinue
 
-    Remove-Item $regPath -Force -Recurse
-
-    return $null
+    return 200
 }
 
 function Set-Log{
@@ -161,6 +163,9 @@ function Set-AutoLogin{
         [Parameter(Mandatory=$true)]
         [string]$Password
     )
+
+    Set-Log -Message "Set Automatic Login" -LogType 'I' -LogConsole
+
     $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 
     $Properties = @(
@@ -178,15 +183,116 @@ function Set-AutoLogin{
         }
     )
 
-    $Properties.ForEach({
-        if(!$(Get-ItemProperty $key -Name $_.keyName)){
-            Set-Log -LogType I -Message "Creating Reg Key: $($_.keyName)" -LogConsole
-            New-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
-        }
-        else{
-            Set-Log -LogType I -Message "Updating Reg Key: $($_.keyName)" -LogConsole
-            Set-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+    try{
+        $Properties.ForEach({
+            if(!$(Get-ItemProperty $key -Name $_.keyName -ErrorAction SilentlyContinue)){
+                Set-Log -LogType I -Message "Creating Reg Key: $($_.keyName)" -LogConsole
+                New-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+            }
+            else{
+                Set-Log -LogType I -Message "Updating Reg Key: $($_.keyName)" -LogConsole
+                Set-ItemProperty $key -Name $_.keyName -Value $_.keyValue -PropertyType String
+            }
+        })
+    }
+    catch {
+        Set-Log -LogType E -Message "Error Creating Auto Login Registry Keys" -LogConsole
+        return 500
+    }
+
+    return 200
+}
+
+function Import-Config{
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+    try{
+        Set-Log -LogType I -Message "Importing Config.." -LogConsole
+        $CONFIG = ConvertFrom-JSON -InputObject $(Get-Content $Path -raw)
+        #load config
+        Set-Log -LogType I -Message "Setting Environment Variables" -LogConsole
+        ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
+            if(!$CONFIG[$_] -or  $CONFIG[$_] -eq ""){
+                [System.Environment]::SetEnvironmentVariable($_ , $null, [System.SetEnvironmentVariableTarger]::User)
+            }
+            else{
+                [System.Environment]::SetEnvironmentVariable($_ , $CONFIG[$_], [System.SetEnvironmentVariableTarger]::User)
+            } 
+        })
+    }
+    catch {
+        Set-Log -LogType E -Message "Error Setting Environment Variables" -LogConsole
+        return 500
+    }
+
+
+    return 200
+}
+
+function Initialize-Setup {
+    param()
+
+    $TEMPPATH = "$env:APPDATA\MediaStack"
+    $LOGPATH = "$env:APPDATA\MediaStack\install-log"
+    Set-Log -LogType I -Message "Checking Required Config Settings" -LogConsole
+    $Environment_Requirements = @(
+        "DEFAULT_USER",
+        "DEFAULT_PASSWORD"
+    )
+
+    $Environment_Requirements.forEach({
+        if(![System.Environment]::GetEnvironmentVariable($_, 'user') -or [System.Environment]::GetEnvironmentVariable($_, 'user') -eq ""){
+            Set-Log -LogType E -Message "$_ is required to be set in the Config - add and try again." -LogConsole
+            return 500
         }
     })
+
+    Set-Log -LogType I -Message "Loading Default Environment Variables" -LogConsole
+    $Environment_Defaults = @(
+        @{
+            name = "TEMP_PATH"
+            value = $TEMPPATH
+        }
+        @{
+            name = "LOG_PATH"
+            value = $LOGPATH
+        }
+    
+    )
+    
+    $Environment_Defaults.forEach({
+        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'user') ){ # Load Default Settiings where Applicable
+            [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.SetEnvironmentVariableTarger]::User)
+        }
+    })
+
+    return 200
+}
+
+function Set-RunOnce{
+    param(
+        [int]$Stage = 0
+    )
+
+    $RUN_KEY = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'
+    $ExecutionString = "''$env:SystemRoot\SysWOW64\WindowsPowershell\v1.0\powershell.exe'' -ExecutionPolicy Bypass -File ''$PSScriptRoot\Install-MediaStack.ps1'' -Stage $Stage"
+
+    try{
+        Set-ItemProperty $RUN_KEY -Name "Stage_$Stage" -Value $ExecutionString -ErrorAction Stop
+    }
+    catch{
+        try{
+            New-Item $RUN_KEY
+            Set-ItemProperty $RUN_KEY -Name "Stage_$Stage" -Value $ExecutionString -ErrorAction Stop
+        }
+        catch {
+            Set-Log -Message "Unable to set RunOnce Key" -LogType 'E' -LogConsole
+            return 500
+        }
+    }
+
+    return 200
 
 }
