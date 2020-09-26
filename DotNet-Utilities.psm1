@@ -11,43 +11,54 @@ function Install-DotNet{
         [ref]$Result
     )
 
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $APP_NAME = "dotNET-$($Version.replace('.','_'))"
-    if(!$env:TEMP_PATH){
-        $TEMP = $(New-TempDirectory($env:APPDATA)).FullName
-        $APP_TEMP = "$TEMP\$APP_NAME.exe"
-    }
-    else{ $APP_TEMP = "$env:TEMP_PATH\$APP_NAME.exe"}
+    # [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    # $APP_NAME = "dotNET-$($Version.replace('.','_'))"
+    # if(!$env:TEMP_PATH){
+    #     $TEMP = $(New-TempDirectory($env:APPDATA)).FullName
+    #     $APP_TEMP = "$TEMP\$APP_NAME.exe"
+    # }
+    # else{ $APP_TEMP = "$env:TEMP_PATH\$APP_NAME.exe"}
 
+    function Get-DotNetDownloadLink{
+        param(
+            [Parameter(Mandatory=$true)]
+            [ValidateSet("4.7.2")]
+            [string]$Version,
 
-    $Versions = @{
-        "4.7.2" = @{
-            init_url = "https://dotnet.microsoft.com/download/dotnet-framework/thank-you/net472-offline-installer"
+            [Parameter(Mandatory=$true)]
+            [ref]$Result
+        )
+
+        $Versions = @{
+            "4.7.2" = @{
+                init_url = "https://dotnet.microsoft.com/download/dotnet-framework/thank-you/net472-offline-installer"
+            }
         }
-    }
 
-    function Get-DotNetDownloadLink($init_url){
         try{
-            return ($( Invoke-WebRequest -Uri $init_url -ErrorAction Stop ).Links | ?{ $_.outerHTML -like "*click here to download manually*"}).href
+            $Result.Value = ($( Invoke-WebRequest -Uri $Versions[$Version].init_url -ErrorAction Stop ).Links | ?{ $_.outerHTML -like "*click here to download manually*"}).href
         }
         catch {
             Set-Log -LogType E -Message "Unable to Get Download Link" -LogConsole
             Set-Log -LogType E -Message $_.Exception.Message -LogConsole
-            return 500
+            $Result.Value = 500
+            return
         }
+
+        return
     }
 
     Set-Log -Message "Installing .NET $Version" -LogType 'I' -LogConsole
 
     try{ # Download .Net
         
-        # Set the UAC to Allow Install of this File
-        $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
-        New-Item $regPath -Force | out-null
-        New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force | out-null
-        New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force | out-null
+        # # Set the UAC to Allow Install of this File
+        # $regPath = "HKCU:\Software\Classes\ms-settings\shell\open\command"
+        # New-Item $regPath -Force | out-null
+        # New-ItemProperty $regPath -Name "DelegateExecute" -Value $null -Force | out-null
+        # New-ItemProperty $regPath -Name "(default)" -Value $APP_TEMP -Force | out-null
 
-        $link = Get-DotNetDownloadLink($versions[$Version].init_url)
+        # $link = Get-DotNetDownloadLink($versions[$Version].init_url)
 
         if($link -ne 500){
             Set-Log -LogType I -Message "Downloading .NET Version: $Version" -LogConsole

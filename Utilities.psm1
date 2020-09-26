@@ -22,10 +22,10 @@ function Install-App{
     param(
         [CmdletBinding(DefaultParameterSetName="Local")]
         [Parameter(Mandatory=$true,Position=0,ParameterSetName="Local")]
-        [string]$File_Path,
+        [string]$Path,
 
         [Parameter(Mandatory=$true,Position=0,ParameterSetName="Web")]
-        [string]$Download_Url,
+        [string]$Url,
 
         [Parameter(Position=1)]
         [ValidateSet("exe","msi","zip/exe","zip/msi")]
@@ -61,15 +61,17 @@ function Install-App{
 
     switch($PSCmdlet.ParameterSetName){
         "Web" {
-            try { # Download EXE and set File Path
+            #try { # Download EXE and set File Path
                 Set-Log -LogType I -Message "Downloading Application" -LogConsole
-                Invoke-WebRequest $Download_Path -OutFile $APP_TEMP -ErrorAction Stop
-            }
-            catch {
-                Set-Log -LogType E -Message "Unable to Download requested File from:[$Download_Path] to:[$APP_TEMP]" -LogConsole
-                $Result.Value = 500
-                Return
-            }
+                #Invoke-WebRequest $Download_Path -OutFile $APP_TEMP -ErrorAction Stop
+                $DLR = 0
+                Start-FileDownload -Url $Url -Path $APP_TEMP -Result ([ref]$DLR)
+
+                if($DLR -ne 200){
+                    Set-Log -LogType E -Message "Unable to Download requested File from:[$Url] to:[$APP_TEMP]" -LogConsole
+                    $Result.Value = 500
+                    Return
+                }
         }
         default{}
     }
@@ -129,7 +131,7 @@ function Install-App{
 
 function Set-Log{
     param(
-        [ValidateSet("E","I")]
+        [ValidateSet("E","I","W")]
         [string]$LogType = "I",
 
         [Parameter(Mandatory=$true)]
@@ -350,32 +352,29 @@ function Start-FileDownload{
         [Parameter(Mandatory=$true, Position=1)]
         [string]$Path,
 
-        [string]$Name
-
+        [Parameter(Mandatory=$true, Position=2)]
+        [ref]$Result
     )
 
-    if(!$Name -or $Name -eq ""){ $Name = $(New-Guid).Guid }
-    $APP_PATH = "$Path\$Name"
+    $APP_PATH = $Path
     $PWSH_PATH = "$env:SystemRoot\system32\WindowsPowershell\v1.0\powershell.exe"
     $command = @"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$WR = New-Object System.Net.WebClient
-$WR.DownloadFile($Url, $APP_PATH)
-$WR.Dispose()
+[System.Net.WebClient]::new().DownloadFile('$Url', '$APP_PATH')
 "@
     $EncodedCommand = [Convert]::ToBase64String( ([System.Text.Encoding]::Unicode.GetBytes($command)) )
-    $proc = Start-Process -FilePath $PWSH_PATH -ArgumentList "-ExecutionPolicy Bypass","-encodedCommand $EncodedCommand" -PassThru
+    $proc = Start-Process -FilePath $PWSH_PATH -ArgumentList "-ExecutionPolicy Bypass","-WindowStyle Hidden","-encodedCommand $EncodedCommand" -PassThru
 
     $timer = [System.Diagnostics.Stopwatch]::new()
     $timer.Start()
     $x = 0
-    $Status = "Installing"
+    $Status = "Downloading"
     while(!$proc.HasExited){
 
         Write-Progress -PercentComplete $x -Activity $Status -Status "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
 
         if($x -lt 100){
-            $x = $x + 5
+            $x = $x++
         }
         else{
             $x = 0
@@ -385,4 +384,7 @@ $WR.Dispose()
 
     }
     $timer.Stop()
+
+    $Result.Value = 200
+    return
 }
