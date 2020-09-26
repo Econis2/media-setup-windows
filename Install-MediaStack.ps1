@@ -7,8 +7,13 @@ param(
 Import-Module ".\Utilities.psm1"
 Import-Module ".\DotNet-Utilities.psm1"
 # Will Be YAML File Settings
-if( $(Import-Config -Path ".\config.json") -ne 200){ Exit 500 }
-if( $(Initialize-Setup ) -ne 200 ){ Exit 500 }
+$Result = 0
+Import-Config -Path ".\config.json" -Result $Result
+if($Result -ne 200){ Exit 500 }
+
+$Result = 0
+Initialize-Setup -Result $Result
+if( $Result -ne 200 ){ Exit 500 }
 
 # Sonarr requires .NET 4.7.2 min
 $DOT_NET_VERSION = '4.7.2'
