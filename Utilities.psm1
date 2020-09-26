@@ -217,9 +217,11 @@ function Import-Config{
         
         ($CONFIG | Get-Member | ?{$_.memberType -eq "NoteProperty"}).Name.forEach({ # Loop Keys in Defaults
             if(!$CONFIG[$_] -or  $CONFIG[$_] -eq ""){
+                Write-Host "Setting $_ to NULL"
                 [System.Environment]::SetEnvironmentVariable($_ , $null, [System.SetEnvironmentVariableTarger]::User)
             }
             else{
+                Write-Host "Setting $_ to $($CONFIG[$_])"
                 [System.Environment]::SetEnvironmentVariable($_ , $CONFIG[$_], [System.SetEnvironmentVariableTarger]::User)
             } 
         })
@@ -246,9 +248,9 @@ function Initialize-Setup {
     )
 
     $Environment_Requirements.forEach({
-        if(![System.Environment]::GetEnvironmentVariable($_, 'user') -or [System.Environment]::GetEnvironmentVariable($_, 'user') -eq ""){
+        if(![System.Environment]::GetEnvironmentVariable($_, 'machine') -or [System.Environment]::GetEnvironmentVariable($_, 'machine') -eq ""){
             #Set-Log -LogType E -Message "$_ is required to be set in the Config - add and try again." -LogConsole
-            return 500
+            Exit 500
         }
     })
 
@@ -266,7 +268,7 @@ function Initialize-Setup {
     )
     
     $Environment_Defaults.forEach({
-        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'Machine') ){ # Load Default Settiings where Applicable
+        if( ![System.Environment]::GetEnvironmentVariable($_.name, 'machine') ){ # Load Default Settiings where Applicable
             [System.Environment]::SetEnvironmentVariable($_.name , $_.value, [System.EnvironmentVariableTarget]::Machine)
         }
     })

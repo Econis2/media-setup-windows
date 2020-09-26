@@ -17,7 +17,7 @@ $SONARR_URL = ""
 switch($Stage){
     0 { #Install Pre-Req Stage
         
-        if( $(Set-AutoLogin -User $DEFAULT_USER -Password $DEFAULT_PASSWORD) -ne 200){ Exit 500 } # Create the User AutoLogin
+        if( $(Set-AutoLogin -User $env:DEFAULT_USER -Password $env:DEFAULT_PASSWORD) -ne 200){ Exit 500 } # Create the User AutoLogin
             
         if(!$(Confirm-DotNetVersion -Version $DOT_NET_VERSION) ){ # Check if Min .NET version is installed
             # Install .NET
