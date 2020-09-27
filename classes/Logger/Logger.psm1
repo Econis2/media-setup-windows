@@ -9,14 +9,18 @@ class Logger {
     Logger([bool]$File){
         if($File){
             try{
-                New-Item $env:LOG_PATH -ItemType File -ErrorAction Stop
+                if( !$(Get-Item -Path $env:LOG_PATH -ErrorAction SilentlyContinue)){
+                    New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
+                }                
                 Write-Host "Setting Log to File: $($env:LOG_PATH)" -ForegroundColor cyan
                 $this.LogPath = $env:LOG_PATH
             }
             catch{
                 try{
                     Write-Host "Unable to create File: $($env:LOG_PATH)" -ForegroundColor yellow
-                    New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
+                    if( !$(Get-Item -Path "C:\log" -ErrorAction SilentlyContinue)){
+                        New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
+                    }
                     Write-Host "Setting Log to File: C:\log" -ForegroundColor cyan
                 }
                 catch{
@@ -30,15 +34,18 @@ class Logger {
     Logger([bool]$File, [bool]$Console){
         if($File){
             try{
-                New-Item $env:LOG_PATH -ItemType File -ErrorAction Stop
+                if( !$(Get-Item -Path $env:LOG_PATH -ErrorAction SilentlyContinue)){
+                    New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
+                }  
                 Write-Host "Setting Log to File: $($env:LOG_PATH)" -ForegroundColor cyan
                 $this.LogPath = $env:LOG_PATH
             }
             catch{
                 try{
                     Write-Host "Unable to create File: $($env:LOG_PATH)" -ForegroundColor yellow
-                    New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
-                    Write-Host "Setting Log to File: C:\log" -ForegroundColor cyan
+                    if( !$(Get-Item -Path "C:\log" -ErrorAction SilentlyContinue)){
+                        New-Item -Path "C:\" -Name "log" -ItemType File -ErrorAction Stop | out-null
+                    }                    Write-Host "Setting Log to File: C:\log" -ForegroundColor cyan
                 }
                 catch{
                     throw "Unable to Create Log File"

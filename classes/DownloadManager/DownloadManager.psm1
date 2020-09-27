@@ -26,13 +26,13 @@ class DownloadManager {
         return $true
     }
 
-    [bool]DownloadFile([DownloadConfig]$Config){
-        $this.Logger.WriteLog([LogType]::INFO, "Starting Download FROM: $($Config.Url) TO: $($Config.Path)")
+    [bool]DownloadFile(){
+        $this.Logger.WriteLog([LogType]::INFO, "Starting Download FROM: $($this.Config.Url) TO: $($this.Config.Path)")
         try{
-            $this.CurrentJobs.add( $(Start-BitsTransfer -Source $Config.Url -Destination $Config.Path -Asynchronous -ErrorAction Stop) )
+            $this.CurrentJobs.add( $(Start-BitsTransfer -Source $this.Config.Url -Destination $this.Config.Path -Asynchronous -ErrorAction Stop) )
         }
         catch{
-            $this.Logger.WriteLog([LogType]::ERROR, "Unable to Download FROM: $($Config.Url) TO: $($Config.Path)")
+            $this.Logger.WriteLog([LogType]::ERROR, "Unable to Download FROM: $($this.Config.Url) TO: $($this.Config.Path)")
             $this.Logger.WriteLog([LogType]::ERROR, $_.Exception.Message)
             return $false
         }
