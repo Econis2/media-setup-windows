@@ -7,6 +7,7 @@
             "version": "4.7.2",
             "restart": true,
             "args": "/q /norestart",
+            "wrapper": "./wrappers/dotNet.psm1",
             "expression": "Get-DotNetDownloadLink -Version (Get-Variable -name APPLICATION).version -Result (Get-Variable -name URL)"
         },
         {
