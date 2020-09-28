@@ -19,19 +19,40 @@ class DownloadManager {
 
             $ID = (New-Guid).Guid
             $WC = [System.Net.WebClient]::new()
-            
+                $Job = @{
+                    id = $_
+                    completed = $false
+                    percent = 0
+                    total = 0
+                    current = 0
+                }
+                # $event = Register-EngineEvent -SourceIdentifier "FileDownloadUpdate-$_" -Action {
+                #     $Job.percent = $event.MessageData[0]
+                #     $Job.current = $event.MessageData[1]
+                #     $Job.total = $event.MessageData[2]
+                # }
+    
+                # Register-EngineEvent -SourceIdentifier "FileDownloadCompleted-$_" -Action {
+                #     $Job.completed = $true
+                # }
+
             Register-ObjectEvent -InputObject $WC -EventName DownloadProgressChanged -Action {
-                [int]$Percent = [Math]::Round( 100 * ($eventargs.BytesTransferred / $eventargs.BytesTotal))
-                New-Event -SourceIdentifier "FileDownloadUpdate-$ID" -MessageData @($Percent, $eventargs.BytesReceived, $eventargs.TotalBytesToReceive) | Out-Null
+                $Job.percent = [Math]::Round( 100 * ($Eventargs.BytesReceived / $Eventargs.TotalBytesToReceive))
+                $Job.current = $Eventargs.BytesReceived
+                $Job.total = $Eventargs.TotalBytesToReceive
+                #New-Event -SourceIdentifier "FileDownloadUpdate-$ID" -MessageData @($Percent, $eventargs.BytesReceived, $eventargs.TotalBytesToReceive) | Out-Null
             }
 
-            Register-ObjectEven -InputObject $WC -EventName DownloadFileCompleted -Action {
-                New-Event -SourceIdentifier "FileDownloadCompleted-$ID" | out-null
+            Register-ObjectEvent -InputObject $WC -EventName DownloadFileCompleted -Action {
+                $Job.completed = $true
+                #New-Event -SourceIdentifier "FileDownloadCompleted-$ID" | out-null
             }
+
+            $this.CurrentJobs.add($Job) | Out-Null
 
             $WC.DownloadFileAsync($Config.Url, $Config.Path)
             
-            $this.CurrentJobs.add($ID) | Out-Null
+            # $this.CurrentJobs.add($ID) | Out-Null
                 
                 #$(Start-Process -File )
                 #$(Start-BitsTransfer -Source $Config.Url -Destination $Config.Path -Asynchronous -ErrorAction Stop) 
@@ -57,30 +78,30 @@ class DownloadManager {
     }
 
     [void]WatchDownload(){
-        [hashtable]$Jobs = @()
+        # [hashtable]$Jobs = @()
 
-        $this.CurrentJobs.ForEach({
-            [hashtable]$Job = @{
-                id = $_
-                completed = $false
-                percent = 0
-                total = 0
-                current = 0
-            }
-            $event = Register-EngineEvent -SourceIdentifier "FileDownloadUpdate-$_" -Action {
-                $Job.percent = $event.MessageData[0]
-                $Job.current = $event.MessageData[1]
-                $Job.total = $event.MessageData[2]
-            }
+        # $this.CurrentJobs.ForEach({
+        #     [hashtable]$Job = @{
+        #         id = $_
+        #         completed = $false
+        #         percent = 0
+        #         total = 0
+        #         current = 0
+        #     }
+        #     $event = Register-EngineEvent -SourceIdentifier "FileDownloadUpdate-$_" -Action {
+        #         $Job.percent = $event.MessageData[0]
+        #         $Job.current = $event.MessageData[1]
+        #         $Job.total = $event.MessageData[2]
+        #     }
 
-            Register-EngineEvent -SourceIdentifier "FileDownloadCompleted-$_" -Action {
-                $Job.completed = $true
-            }
-        })
+        #     Register-EngineEvent -SourceIdentifier "FileDownloadCompleted-$_" -Action {
+        #         $Job.completed = $true
+        #     }
+        # })
 
-        While( ($Jobs | ?{$_.completed -eq $false}).length -eq 0 ){
+        While( ($this.CurrentJobs | ?{$_.completed -eq $false}).length -eq 0 ){
             $index = 0
-            $Jobs.forEach({
+            $this.CurrentJobs.forEach({
                 Write-Progress -Id $index -Activity "Downloading" -Status "$($_.current) of $($_.total)" -PercentComplete $_.percent
                 $x++
             })
