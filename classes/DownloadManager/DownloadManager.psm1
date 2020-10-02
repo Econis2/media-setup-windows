@@ -64,32 +64,35 @@ class DownloadManager {
     [void]DownloadFiles([DownloadConfig[]]$Configs){
         [System.Collections.ArrayList]$ActiveDownloads = @()
         $Configs.forEach({
+            $total = ([System.Net.WebRequest]::Create($Config.Url).GetResponse().Headers['Content-Length'])
             $ActiveDownloads.Add(@{
                 Path = $_.Path
                 Url = $_.Url
-                Size = ([System.Net.WebRequest]::Create($Config.Url).GetResponse().Headers['Content-Length'])
+                Size = $total
             }) | Out-Null
         })
-        $completed = $false
-        while(!$completed){
-            for($x = 0; $x -lt $ActiveDownloads.Count; $x++){
-                $c_length = (Get-Item $ActiveDownloads[$x].Path).Length
-                if($ActiveDownloads.Size -eq $c_length){
-                    $completed = $true
-                    break
-                }
-                $percent = ( $c_length / $ActiveDownloads.Size) * 100
-                Write-Progress -Id 1 -Activity "Downloading" -Status "$c_length of $($ActiveDownloads.Size)" -PercentComplete $percent
+        $Configs.forEach({
+            $this._Download($_)
+        })
 
-            
-            Start-Sleep -Milliseconds 50
-            }
+        while(!(Test-Path $Configs[0].Path)){
+            # Do Nothing
         }
 
-        # $Configs.forEach({
-        #     $this.DownloadFile($_)
-        # })
-        # return $true
+        while(!$ActiveDownloads.Count -ne 0){
+            for($x = 0; $x -lt $ActiveDownloads.Count; $x++){
+                $c_length = (Get-Item $ActiveDownloads[$x].Path).Length
+                if($ActiveDownloads[$x].Size -eq $c_length){
+                    Write-Progress -Id $x -Activity "Downloading $($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                    break
+                }
+                $percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
+                Write-Progress -Id $x -Activity "Downloading $($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].Size))" -PercentComplete $percent
+
+            
+            Start-Sleep -Milliseconds 150
+            }
+        }
     }
 
     [int]getJobPercent($Job){ return [Math]::Round( ($Job.BytesTransferred / $Job.BytesTotal) * 100 ) }
