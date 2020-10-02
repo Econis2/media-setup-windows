@@ -7,7 +7,7 @@ class DownloadManager {
     [DownloadConfig]$Config
 
     hidden [Logger]$Logger = [Logger]::new($true, $true)
-    
+
     DownloadManager(){}
     DownloadManager([DownloadConfig[]]$_configs){ $this.Configs = $_configs }
     DownloadManager([DownloadConfig]$_config){ $this.Config = $_config }
@@ -21,17 +21,16 @@ class DownloadManager {
         $this._Download($Config)
         $completed = $false
         while(!$completed){
-            for($x = 0; $x -lt $this.CurrentJobs.Count; $x++){
-                $c_length = (Get-Item $this.CurrentJobs[$x].Path).Length
+                $c_length = (Get-Item $Config.Path).Length
 
                 if($Length -eq $c_length){
                     $completed = $true
                     break
                 }
-                $percent = ( $c_length / $this.CurrentJobs[$x].size) * 100
-                Write-Progress -Id $x -Activity "Downloading" -Status "$c_length of $($this.CurrentJobs[$x].size)" -PercentComplete $percent
+                $percent = ( $c_length / $Length) * 100
+                Write-Progress -Id "FileName" -Activity "Downloading" -Status "$c_length of $($Length)" -PercentComplete $percent
 
-            }
+            
             Start-Sleep -Milliseconds 50
         }
 
