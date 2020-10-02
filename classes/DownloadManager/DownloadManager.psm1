@@ -12,11 +12,20 @@ class DownloadManager {
     DownloadManager([DownloadConfig[]]$_configs){ $this.Configs = $_configs }
     DownloadManager([DownloadConfig]$_config){ $this.Config = $_config }
 
-    hidden [void]_Download([DownloadConfig]$Config){ [System.Net.WebClient]::new().DownloadDataAsync($Config.Url, $Config.Path) }
+    hidden [void]_Download([DownloadConfig]$Config){ 
+        # [System.Net.WebClient]::new().DownloadFileAsync($Config.Url, $Config.Path) 
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode("[System.Net.WebClient]::new().DownloadFile(`"$Config.Url`", `"$Config.Path`")"))
+        $args = @(
+            "-encodedCommand $encoded",
+            "-ExecutionPolicy Bypass"
+        )
+
+        $proc = Start-Process "C:\windows\system32\WindowsPowershell\v1.0\powershell.exe" -ArgumentList $args -PassThru
+    }
 
     [bool]DownloadFile([DownloadConfig]$Config){
         # Get File Statistics
-        $Length = ([System.Net.WebRequest]::Create($_.Url).GetResponse().Headers['Content-Length'])
+        $Length = ([System.Net.WebRequest]::Create($Config.Url).GetResponse().Headers['Content-Length'])
 
         $this._Download($Config)
         $completed = $false
