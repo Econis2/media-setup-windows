@@ -62,8 +62,10 @@ class DownloadManager {
 
     [void]DownloadFiles([DownloadConfig[]]$Configs){
         [System.Collections.ArrayList]$ActiveDownloads = @()
+        $TotalDownloads = $Configs.Count
+        $CompletedDownloads = 0
         $Configs.forEach({
-            $Headers = ([System.Net.WebRequest]::Create($Config.Url).GetResponse().Headers)
+            $Headers = ([System.Net.WebRequest]::Create($_.Url).GetResponse().Headers)
             $ActiveDownloads.Add(@{
                 Path = $_.Path
                 Url = $_.Url
@@ -74,19 +76,21 @@ class DownloadManager {
             $this._Download($_)
         })
 
-        while(!(Test-Path $Configs[0].Path)){
-            # Do Nothing
-        }
-
         while(!$ActiveDownloads.Count -ne 0){
+            Write-Progress -Id 9999 -Activity "Downloading Files" -Status "$CompletedDownloads of $TotalDownloads" -PercentComplete (($CompletedDownloads / $TotalDownloads) *100)
             for($x = 0; $x -lt $ActiveDownloads.Count; $x++){
+                while(!(Test-Path $ActiveDownloads[$x].Path)){} #do Nothing until file is there
+                
                 $c_length = (Get-Item $ActiveDownloads[$x].Path).Length
+                
                 if($ActiveDownloads[$x].Size -eq $c_length){
-                    Write-Progress -Id $x -Activity "Downloading $($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                    Write-Progress -Id $x -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100 -Completed
+                    $ActiveDownloads.RemoveAt($x)
+                    $CompletedDownloads ++
                     break
                 }
                 $percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
-                Write-Progress -Id $x -Activity "Downloading $($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].Size))" -PercentComplete $percent
+                Write-Progress -Id $x -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].Size))" -PercentComplete $percent
 
             
             Start-Sleep -Milliseconds 150
