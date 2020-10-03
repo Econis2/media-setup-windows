@@ -1,5 +1,5 @@
 using module "..\Logger\Logger.psm1"
-using module "..\Logger\LoggerType\LoggerType.psm1"
+using module "..\Logger\LogType\LogType.psm1"
 using module "..\DownloadManager\DownloadManager.psm1"
 
 class MediaStack {
