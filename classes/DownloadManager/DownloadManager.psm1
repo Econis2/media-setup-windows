@@ -113,4 +113,21 @@ class DownloadManager {
     }
 
     [void]DownloadFiles(){ $this.DownloadFiles($this.Configs) }
+
+    [void]_GetMeta([string]$url){
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $completed = $false
+        while(!$completed){
+            try{
+                $WebClient = [System.Net.WebRequest]::Create($url)
+                $WebClient.Timeout = 5000 # 5 Second Timeout
+                $WebClient.AllowAutoRedirect = $true
+                
+                $WebClient.GetResponse().Headers
+            }
+            catch {
+
+            }
+        }
+    }
 }

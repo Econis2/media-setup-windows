@@ -1,6 +1,6 @@
 {
     "RELEASE": "0.0.1",
-    "BASE_URL": "https://github.com/Econis2/media-setup-windows",
+    "BASE_URL": "https://github.com/Econis2/media-setup-windows/releases/download",
     "APPS": [
         {
             "name": "dotNet",

@@ -32,7 +32,7 @@ class MediaStack {
             $path = "$env:APP_TEMP\$full_name"
             return [DownloadConfig]::new($url, $path)
         })
-        $this._Logger.WriteLog([LogType]::INFO,"Download Dependency Applications")
+        $this._Logger.WriteLog([LogType]::INFO,"Downloading Dependency Applications")
 
         while($Apps.Count -ne 0){
             [DownloadManager]::new().DownloadFiles($Apps)
