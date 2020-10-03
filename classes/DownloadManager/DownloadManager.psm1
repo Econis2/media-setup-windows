@@ -6,16 +6,53 @@ class DownloadManager {
     [DownloadConfig[]]$Configs
     [DownloadConfig]$Config
 
-    hidden [Logger]$Logger = [Logger]::new($true, $true)
+    hidden [int]$_retires = 5
+    hidden [Logger]$_Logger = [Logger]::new($true, $true)
 
     DownloadManager(){}
     DownloadManager([DownloadConfig[]]$_configs){ $this.Configs = $_configs }
     DownloadManager([DownloadConfig]$_config){ $this.Config = $_config }
 
+    hidden [System.Net.WebHeaderCollection]_GetMeta([string]$url){
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        [Net.ServicePointManager]::DefaultConnectionLimit = 100
+        $this._Logger.WriteLog([LogType]::INFO,"Getting file stats")
+        $completed = $false
+        $retries = $this._retires
+        $count = 0
+        $responseHeaders = [System.Net.WebHeaderCollection]::new()
+        while($retries -ne $count){
+            $WebClient = [System.Net.WebRequest]::Create($url)
+            $WebClient.Timeout = 5000 # 5 Second Timeout
+            $WebClient.AllowAutoRedirect = $true
+            try{
+                $response = $WebClient.GetResponse()
+                $responseHeaders = $response.Headers
+                $count = $retries
+                $WebClient.Abort() # Stop Client
+            }
+            catch [System.Net.WebException] {
+                $WebClient.Abort() # Stop Client
+                if($_.Exception.Message.contains("The operation has timed out")){ # Catch a Timeout and Try again
+                    $this._Logger.WriteLog([LogType]::ERROR, "Connection TimeOut, will retry $($retries - $count) times")
+                    $count ++
+                }
+                else{ # Other Exception
+                    $this._Logger.WriteLog([LogType]::ERROR, "Another Web Error")
+                    $this._Logger.WriteLog([LogType]::ERROR, "$($_.Exception.Message)")
+                    throw $_.Exception.Message
+                }
+                
+            }
+        }
+        return $responseHeaders
+    }
+
     hidden [void]_Download([DownloadConfig]$Config){ 
         $cmd =
 @"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::DefaultConnectionLimit = 100
 [System.Net.WebClient]::new().DownloadFile("$($Config.Url)", "$($Config.Path)").Dispose()
 "@ 
         $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd))
@@ -24,39 +61,58 @@ class DownloadManager {
             "-ExecutionPolicy Bypass"
             "-WindowStyle Hidden"
         )
-        $this.Logger.WriteLog([LogType]::INFO,"Starting Download")
-        $this.Logger.WriteLog([LogType]::INFO,"From: $($Config.Url)")
-        $this.Logger.WriteLog([LogType]::INFO,"To: $($Config.Path)")
+        $this._Logger.WriteLog([LogType]::INFO,"Starting Download")
+        $this._Logger.WriteLog([LogType]::INFO,"From: $($Config.Url)")
+        $this._Logger.WriteLog([LogType]::INFO,"To: $($Config.Path)")
         $proc = Start-Process "C:\windows\system32\WindowsPowershell\v1.0\powershell.exe" -ArgumentList $args -PassThru -WindowStyle Hidden
-        $this.Logger.WriteLog([LogType]::INFO,"Process[$($proc.id)] started")
+        $this._Logger.WriteLog([LogType]::INFO,"Process[$($proc.id)] started")
     }
 
     [bool]DownloadFile([DownloadConfig]$Config){
         # Get File Statistics
-        $this.Logger.WriteLog([LogType]::INFO,"Getting file stats")
-
-        $Headers = ([System.Net.WebRequest]::Create($Config.Url).GetResponse().Headers)
-        
-        $Length = $Headers['Content-Length'] # File Size
-        
-        $this.Logger.WriteLog([LogType]::INFO,"File Size: $Length")
-        
+        try{
+            [System.Net.WebHeaderCollection]$Headers = $this._GetMeta($Config.Url)
+            $Length = $Headers['Content-Length'] # File Size
+            $this._Logger.WriteLog([LogType]::INFO,"File Size: $Length")
+        }
+        catch {
+            $Length = "unknown"
+        }
+    
         $this._Download($Config) # Download the File
         
-        $this.Logger.WriteLog([LogType]::INFO,"Waiting for download to finish")
+        $this._Logger.WriteLog([LogType]::INFO,"Waiting for download to finish")
         
         $completed = $false
-        
+        $unknown_progress = 0
         while(!$completed){
                 $c_length = (Get-Item $Config.Path).Length
-
-                if($Length -eq $c_length){
-                    $completed = $true
-                    break
+                if($Length -ne "unknown"){
+                    if($Length -eq $c_length){
+                        $completed = $true
+                        break
+                    }
+                    $percent = ( $c_length / $Length) * 100
+                    Write-Progress -Id 1 -Activity "Downloading $($Config.Path.split('\')[-1])" -Status "$c_length of $($Length)" -PercentComplete $percent
                 }
-                $percent = ( $c_length / $Length) * 100
-                Write-Progress -Id 1 -Activity "Downloading $($Config.Path.split('\')[-1])" -Status "$c_length of $($Length)" -PercentComplete $percent
+                else{ # Unkown File Size
+                    if($Config.currentSize -eq $c_length){ #Download complete
+                        Write-Progress -Id 1 -Activity "$($Config.Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                    }
+                    else{
+                        $prog = 0
+                        switch ($unknown_progress) {
+                            0 { $prog = 0}
+                            1 { $prog = 25}
+                            2 { $prog = 50}
+                            3 { $prog = 75}
+                            4 { $prog = 100}
+                            Default {}
+                        }
+                        Write-Progress -Id 1 -Activity "$($Config.Path.split('\')[-1])" -Status "$c_length of UNKNOWN" -PercentComplete $prog
+                    }
 
+                }
             
             Start-Sleep -Milliseconds 150
         }
@@ -67,67 +123,98 @@ class DownloadManager {
     [bool]DownloadFile(){ return $this.DownloadFile($this.Config) }
 
     [void]DownloadFiles([DownloadConfig[]]$Configs){
+        $id_pool = @()
         [System.Collections.ArrayList]$ActiveDownloads = @()
         [int]$TotalDownloads = $Configs.Count
         [int]$CompletedDownloads = 0
         
         $Configs.forEach({
-            
-            $this.Logger.WriteLog([LogType]::INFO,"Getting Stats: $($_.Url)")
-            
-            $Headers = ([System.Net.WebRequest]::Create($_.Url).GetResponse().Headers)
-            
-            $ActiveDownloads.Add(@{
-                Path = $_.Path
-                Url = $_.Url
-                Size = $Headers['Content-Length']
-            }) | Out-Null
+            # Get File Statistics
+            try{
+                [System.Net.WebHeaderCollection]$Headers = $this._GetMeta($_.Url)
+                
+                $id = 0
+                while($id -ne 0){ #Generate Random ID - this is used for the progress bars
+                    $temp_id = Get-Random -Maximum 1000 -Minimum 100
+                    if(!$id_pool.Contains($temp_id)){ $id = $temp_id; $id_pool += $temp_id }
+                }
+                    
+                $ActiveDownloads.Add(@{
+                    id = $id
+                    Path = $_.Path
+                    Url = $_.Url
+                    totalSize = $Headers['Content-Length']
+                    currentSize = 0
+                }) | Out-Null
+            }
+            catch{
+                $this._Logger.WriteLog([LogType]::ERROR,"Unable to get Meta-Data for File")
+                $ActiveDownloads.Add(@{
+                    id = $id
+                    Path = $_.Path
+                    Url = $_.Url
+                    totalSize = "unknown"
+                    currentSize = 0
+                }) | Out-Null
+            }
         })
 
-        $Configs.forEach({
+        $Configs.forEach({ # Download all the Files
             $this._Download($_)
         })
 
-        $this.Logger.WriteLog([LogType]::INFO,"Waiting for downloads to finish")
+        $this._Logger.WriteLog([LogType]::INFO,"Waiting for downloads to finish")
 
-        while($ActiveDownloads.Count -ne 0){
-            Write-Progress -Id 9999 -Activity "Downloading Files" -Status "$CompletedDownloads of $TotalDownloads" -PercentComplete (($CompletedDownloads / $TotalDownloads) *100)
-            for($x = 0; $x -lt $ActiveDownloads.Count; $x++){
+        $unknown_progress = 0
+        while($ActiveDownloads.Count -ne 0){ # Wait for Downloads to Complete
+            # Total Progress of all Current Downloads
+            Write-Progress -Id 1 -Activity "Downloading Files" -Status "$CompletedDownloads of $TotalDownloads" -PercentComplete (($CompletedDownloads / $TotalDownloads) *100)
+            
+            for($x = 0; $x -lt $ActiveDownloads.Count; $x++){ # Loop through each Job and Update Status
                 while(!(Test-Path $ActiveDownloads[$x].Path)){} #do Nothing until file is there
                 
-                $c_length = (Get-Item $ActiveDownloads[$x].Path).Length
-                
-                if($ActiveDownloads[$x].Size -eq $c_length){
-                    Write-Progress -Id $x -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
-                    $ActiveDownloads.RemoveAt($x)
-                    $CompletedDownloads ++
-                    break
+                $c_length = (Get-Item $ActiveDownloads[$x].Path).Length # Current File Size
+                if($ActiveDownloads[$x].Size -ne "unknown"){ # If Total File Size is Known
+                    
+                    if($ActiveDownloads[$x].Size -eq $c_length){ # Check Current vs Total Size
+    
+                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                        $ActiveDownloads.RemoveAt($x)
+                        $CompletedDownloads ++
+                        break
+                    }
+                    $percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
+                    Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].totalSize))" -PercentComplete $percent
+    
                 }
-                $percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
-                Write-Progress -Id $x -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].Size))" -PercentComplete $percent
+                else{ # Unkown File Size
+                    if($ActiveDownloads[$x].currentSize -eq $c_length){ #Download complete
+                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                    }
+                    else{
+                        $prog = 0
+                        switch ($unknown_progress) {
+                            0 { $prog = 0}
+                            1 { $prog = 25}
+                            2 { $prog = 50}
+                            3 { $prog = 75}
+                            4 { $prog = 100}
+                            Default {}
+                        }
+                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of UNKNOWN" -PercentComplete $prog
+                    }
 
-            
-            Start-Sleep -Milliseconds 150
+                }
+
             }
+
+            if($unknown_progress -eq 100){ $unknown_progress = 0}
+            else{ $unknown_progress ++}
+            Start-Sleep -Milliseconds 150
         }
     }
 
     [void]DownloadFiles(){ $this.DownloadFiles($this.Configs) }
 
-    [void]_GetMeta([string]$url){
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $completed = $false
-        while(!$completed){
-            try{
-                $WebClient = [System.Net.WebRequest]::Create($url)
-                $WebClient.Timeout = 5000 # 5 Second Timeout
-                $WebClient.AllowAutoRedirect = $true
-                
-                $WebClient.GetResponse().Headers
-            }
-            catch {
 
-            }
-        }
-    }
 }
