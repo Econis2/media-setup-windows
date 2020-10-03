@@ -76,7 +76,7 @@ class DownloadManager {
             $this._Download($_)
         })
 
-        while(!$ActiveDownloads.Count -ne 0){
+        while($ActiveDownloads.Count -ne 0){
             Write-Progress -Id 9999 -Activity "Downloading Files" -Status "$CompletedDownloads of $TotalDownloads" -PercentComplete (($CompletedDownloads / $TotalDownloads) *100)
             for($x = 0; $x -lt $ActiveDownloads.Count; $x++){
                 while(!(Test-Path $ActiveDownloads[$x].Path)){} #do Nothing until file is there
