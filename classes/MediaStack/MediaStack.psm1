@@ -1,6 +1,7 @@
 using module "..\Logger\Logger.psm1"
 using module "..\Logger\LogType\LogType.psm1"
 using module "..\DownloadManager\DownloadManager.psm1"
+using module "..\DownloadManager\DownloadConfig\DownloadConfig.psm1"
 
 class MediaStack {
     # Public Properties
@@ -10,13 +11,13 @@ class MediaStack {
             system = $null
         }
     }
-    [hashtable]$Config = @{
+    $Config = @{
         user = @{}
         system = @{}
     }
 
     # Private Properties
-    hidden [Logger]$_Logger = [Logger]::new()
+    hidden [Logger]$_Logger = [Logger]::new($true, $true)
 
     MediaStack([string]$SystemConfig, [string]$UserConfig){
         $this.Paths.config.system = $SystemConfig
@@ -27,7 +28,7 @@ class MediaStack {
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
         [System.Collections.ArrayList]$Apps = $this.Config.system.APPS.forEach({
             $full_name = "$($_.name)-$($_.version).$($_.type)"
-            $url = "$($this.Config.system['BASE_URL'])/$($this.Config.system['RELEASE'])/$full_name"
+            $url = "$($this.Config.system.'BASE_URL')/$($this.Config.system.'RELEASE')/$full_name"
             $path = "$env:APP_TEMP\$full_name"
             return [DownloadConfig]::new($url, $path)
         })
@@ -58,7 +59,7 @@ class MediaStack {
     hidden [bool]_LoadConfig([string]$Name){
         try{
             $this._Logger.WriteLog([LogType]::INFO,"Getting $Name config from: $($this.Paths.config[$Name])")
-            [hashtable]$_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config[$Name] -Raw -ErrorAction Stop) -ErrorAction Stop
+            $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config[$Name] -Raw -ErrorAction Stop) -ErrorAction Stop
             $this.Config = $_config
         }
         catch {
