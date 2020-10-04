@@ -52,7 +52,7 @@ class MediaStack {
         })
         $this._Logger.WriteLog([LogType]::INFO,"Downloading Dependency Applications")
         while($Apps.Count -ne 0){
-            [DownloadManager]::new().DownloadFiles($Apps, $this._Logger)
+            [DownloadManager]::new($this._Logger).DownloadFiles($Apps)
 
             $this._Logger.WriteLog([LogType]::INFO,"Verifying Apps have successfully downloaded")
             for($x=0; $x -lt $Apps.Count; $x++){
