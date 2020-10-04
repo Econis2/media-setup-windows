@@ -118,7 +118,7 @@ class Logger {
     [void]WriteLog([LogType]$_messageType, [string]$_message){
         # Get TimeStamp
         $date = Get-Date
-        [string]$timeStamp = "[$($date.Year)-$($date.Month)-$($date.Day):$($date.Hour):$($date.Minute):$($date.Second)]"
+        [string]$timeStamp = "[$($date.Year)-$($date.Month)-$($date.Day):$($date.Hour):$($date.Minute)"
         [string]$logMessage = $TimeStamp + "[$_messageType]" + $_message
 
         if($this.OutputConsole){
