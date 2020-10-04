@@ -25,6 +25,20 @@ class MediaStack {
     }
 
     [void]_DownloadDependencies(){
+        $psHost = Get-Host
+        $Window = $psHost.UI.RawUI
+
+        $bufferSize = $Window.BufferSize
+        $bufferSize.Height = 3000
+        $bufferSize.Width = 200
+        $Window.BufferSize = $bufferSize
+
+        $windowSize = $Window.WindowSize
+        $windowSize.Height = 50
+        $windowSize.Width = 175
+        $Window.WindowSize = $windowSize
+        
+        [System.Collections.ArrayList]$AppsNotDownloaded = @()
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
         [System.Collections.ArrayList]$Apps = $this.Config.system.APPS.forEach({
             $full_name = "$($_.name)-$($_.version).$($_.type)"
@@ -33,14 +47,16 @@ class MediaStack {
             return [DownloadConfig]::new($url, $path)
         })
         $this._Logger.WriteLog([LogType]::INFO,"Downloading Dependency Applications")
-
         while($Apps.Count -ne 0){
             [DownloadManager]::new().DownloadFiles($Apps)
+
             $this._Logger.WriteLog([LogType]::INFO,"Verifying Apps have successfully downloaded")
             for($x=0; $x -lt $Apps.Count; $x++){
-                if(Test-Path $Apps[$x].Path){ 
-                    $this._Logger.WriteLog([LogType]::INFO,"Checking $($Apps[$x].Path)")
-                    $Apps.RemoveAt($x) | Out-Null
+                $this._Logger.WriteLog([LogType]::INFO,"Checking $($Apps[$x].Path)")
+                if(Test-Path $Apps[$x].Path){
+                    $this._Logger.WriteLog([LogType]::INFO,"App Found")
+                    $Apps.RemoveAt($x)
+                    $x = $x -1
                 }
             }
         }

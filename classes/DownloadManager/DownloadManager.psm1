@@ -123,6 +123,7 @@ class DownloadManager {
     [bool]DownloadFile(){ return $this.DownloadFile($this.Config) }
 
     [void]DownloadFiles([DownloadConfig[]]$Configs){
+        [System.Net.ServicePointManager]::DefaultConnectionLimit = 100
         $id_pool = @()
         [System.Collections.ArrayList]$ActiveDownloads = @()
         [int]$TotalDownloads = $Configs.Count
@@ -167,29 +168,46 @@ class DownloadManager {
 
         $unknown_progress = 0
         while($ActiveDownloads.Count -ne 0){ # Wait for Downloads to Complete
+            $_Activity = $null
+            $_Percent = $null
+            $_Status = $null
+            $_Completed = $false
             # Total Progress of all Current Downloads
-            Write-Progress -Id 1 -Activity "Downloading Files" -Status "$CompletedDownloads of $TotalDownloads" -PercentComplete (($CompletedDownloads / $TotalDownloads) *100)
-            
+            $total_percent = 0
             for($x = 0; $x -lt $ActiveDownloads.Count; $x++){ # Loop through each Job and Update Status
                 while(!(Test-Path $ActiveDownloads[$x].Path)){} #do Nothing until file is there
                 
                 $c_length = (Get-Item $ActiveDownloads[$x].Path).Length # Current File Size
                 if($ActiveDownloads[$x].Size -ne "unknown"){ # If Total File Size is Known
-                    
                     if($ActiveDownloads[$x].Size -eq $c_length){ # Check Current vs Total Size
-    
-                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                        $_Activity = "$($ActiveDownloads[$x].Path.split('\')[-1])"
+                        $_Status = "$([Math]::Round(($c_length / 1024)/1024)) / $([Math]::Round(($c_length / 1024)/1024)) (MB)"
+                        $_Percent = 100
+                        $_Completed = $true
                         $ActiveDownloads.RemoveAt($x)
                         $CompletedDownloads ++
-                        break
+
+                        $total_percent += $_Percent # Add to Total for More Accutate Overall Prgress
                     }
-                    $percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
-                    Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $($ActiveDownloads[$x].totalSize))" -PercentComplete $percent
+                    else{
+                        $_Activity = "$($ActiveDownloads[$x].Path.split('\')[-1])"
+                        $_Status = "$([Math]::Round(($c_length / 1024)/1024)) / $([Math]::Round(($ActiveDownloads[$x].totalSize / 1024)/1024)) (MB)"
+                        $_Percent = ( $c_length / $ActiveDownloads[$x].Size) * 100
+                        $_Completed = $false
+                        $total_percent += $_Percent
+                    }
     
                 }
                 else{ # Unkown File Size
                     if($ActiveDownloads[$x].currentSize -eq $c_length){ #Download complete
-                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of $c_length" -PercentComplete 100
+                        $_Activity = "$($ActiveDownloads[$x].Path.split('\')[-1])"
+                        $_Status = "$([Math]::Round(($c_length / 1024)/1024)) / $([Math]::Round(($c_length / 1024)/1024)) (MB)"
+                        $_Percent = 100
+                        $_Completed = $true
+                        $ActiveDownloads.RemoveAt($x)
+                        $CompletedDownloads ++
+
+                        $total_percent += $_Percent # Add to Total for More Accutate Overall Prgress                    
                     }
                     else{
                         $prog = 0
@@ -201,17 +219,29 @@ class DownloadManager {
                             4 { $prog = 100}
                             Default {}
                         }
-                        Write-Progress -Id $ActiveDownloads[$x].id -Activity "$($ActiveDownloads[$x].Path.split('\')[-1])" -Status "$c_length of UNKNOWN" -PercentComplete $prog
+
+                        $_Activity = "$($ActiveDownloads[$x].Path.split('\')[-1])"
+                        $_Status = "$([Math]::Round(($c_length / 1024)/1024)) / UNKNOWN (MB)"
+                        $_Percent = $prog
+                        $_Completed = $false
+                        $total_percent += $_Percent
+                        
                     }
 
                 }
+            
+                Write-Progress -Id $ActiveDownloads[$x].id -Activity $_Activity -Status $_Status -PercentComplete $_Percent -Completed $_Completed
 
             }
 
             if($unknown_progress -eq 100){ $unknown_progress = 0}
             else{ $unknown_progress ++}
+
+            Write-Progress -Id 1 -Activity "Downloading Files" -Status "$CompletedDownloads / $TotalDownloads" -PercentComplete [Math]::Round(($total_percent / $TotalDownloads) * 100)
+
             Start-Sleep -Milliseconds 150
         }
+        $this._Logger.WriteLog([LogType]::INFO,"Active Downloads Completed")
     }
 
     [void]DownloadFiles(){ $this.DownloadFiles($this.Configs) }
