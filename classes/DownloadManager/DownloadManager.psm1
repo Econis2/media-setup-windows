@@ -7,11 +7,41 @@ class DownloadManager {
     [DownloadConfig]$Config
 
     hidden [int]$_retires = 5
-    hidden [Logger]$_Logger = [Logger]::new($true, $true)
+    hidden [Logger]$_Logger
 
-    DownloadManager(){}
-    DownloadManager([DownloadConfig[]]$_configs){ $this.Configs = $_configs }
-    DownloadManager([DownloadConfig]$_config){ $this.Config = $_config }
+    # Wihtout Logger
+    DownloadManager(){
+        $this._Logger = [Logger]::new($true,$true)
+    }
+
+    DownloadManager([DownloadConfig[]]$_configs){
+        $this.Configs = $_configs
+        $this._Logger = [Logger]::new($true,$true)
+    }
+
+    DownloadManager([DownloadConfig]$_config){
+        $this._Logger = [Logger]::new($true,$true)
+        $this.Config = $_config
+    }
+
+    # With Logger
+    DownloadManager([Logger]$Logger){
+        $this._Logger = $Logger
+    }
+    
+    DownloadManager([DownloadConfig[]]$_configs,[Logger]$Logger){
+        $this.Configs = $_configs
+        $this._Logger = $Logger
+    }
+
+    DownloadManager([DownloadConfig]$_config,[Logger]$Logger){
+        $this.Config = $_config
+        $this._Logger = $Logger
+    }
+
+    [void]SetLogger([Logger]$Logger){
+        $this._Logger = $Logger
+    }
 
     hidden [System.Net.WebHeaderCollection]_GetMeta([string]$url){
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12

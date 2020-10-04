@@ -37,7 +37,7 @@ class MediaStack {
         $windowSize.Height = 50
         $windowSize.Width = 175
         $Window.WindowSize = $windowSize
-        
+
         [System.Collections.ArrayList]$AppsNotDownloaded = @()
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
         [System.Collections.ArrayList]$Apps = $this.Config.system.APPS.forEach({
@@ -48,7 +48,7 @@ class MediaStack {
         })
         $this._Logger.WriteLog([LogType]::INFO,"Downloading Dependency Applications")
         while($Apps.Count -ne 0){
-            [DownloadManager]::new().DownloadFiles($Apps)
+            [DownloadManager]::new().DownloadFiles($Apps, $this._Logger)
 
             $this._Logger.WriteLog([LogType]::INFO,"Verifying Apps have successfully downloaded")
             for($x=0; $x -lt $Apps.Count; $x++){
