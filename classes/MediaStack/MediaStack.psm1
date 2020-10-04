@@ -20,11 +20,12 @@ class MediaStack {
     hidden [Logger]$_Logger = [Logger]::new($true, $true)
 
     MediaStack([string]$SystemConfig, [string]$UserConfig){
+        $this._LoadHost()
         $this.Paths.config.system = $SystemConfig
         $this.Paths.config.user = $UserConfig
     }
 
-    [void]_DownloadDependencies(){
+    hidden [void]_LoadHost(){
         $psHost = Get-Host
         $Window = $psHost.UI.RawUI
 
@@ -37,10 +38,13 @@ class MediaStack {
         $windowSize.Height = 50
         $windowSize.Width = 175
         $Window.WindowSize = $windowSize
+    }
 
-        [System.Collections.ArrayList]$AppsNotDownloaded = @()
+    [void]_DownloadDependencies(){
+
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
         [System.Collections.ArrayList]$Apps = $this.Config.system.APPS.forEach({
+            $this._Logger.WriteLog([LogType]::INFO,"Getting config for app: $full_name")
             $full_name = "$($_.name)-$($_.version).$($_.type)"
             $url = "$($this.Config.system.'BASE_URL')/$($this.Config.system.'RELEASE')/$full_name"
             $path = "$env:APP_TEMP\$full_name"
@@ -74,12 +78,12 @@ class MediaStack {
 
     hidden [bool]_LoadConfig([string]$Name){
         try{
-            $this._Logger.WriteLog([LogType]::INFO,"Getting $Name config from: $($this.Paths.config[$Name])")
-            $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config[$Name] -Raw -ErrorAction Stop) -ErrorAction Stop
-            $this.Config = $_config
+            $this._Logger.WriteLog([LogType]::INFO,"Getting $Name config from: $($this.Paths.config.$Name)")
+            $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config.$Name -Raw -ErrorAction Stop) -ErrorAction Stop
+            $this.Config.$Name = $_config
         }
         catch {
-            $this._Logger.WriteLog([LogType]::ERROR,"Error Getting $Name config from: $($this.Paths.config[$Name])")
+            $this._Logger.WriteLog([LogType]::ERROR,"Error Getting $Name config from: $($this.Paths.config.$Name)")
             $this._Logger.WriteLog([LogType]::ERROR,"$($_.Exception.Message)")
             return $false
         }
