@@ -6,9 +6,18 @@ class BaseWrapper {
 
     BaseWrapper(){}
 
-    [void]Download(){
-        [DownloadManager]::new().DownloadFile()
+    [bool]isInstalled(){
+        Write-Host "This is a Generic Class, and This Does Nothing"
+        return $false
     }
 
-    [void]Install(){}
+    [bool]Download(){
+        Write-Host "This is a Generic Class, and This Does Nothing"
+        return $false
+    }
+
+    [bool]Install(){
+        Write-Host "This is a Generic Class, and This Does Nothing"
+        return $false
+    }
 }
