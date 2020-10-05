@@ -15,17 +15,24 @@ class MediaStack {
         user = @{}
         system = @{}
     }
-
+    
     # Private Properties
     hidden [Logger]$_Logger = [Logger]::new($true, $true)
+    hidden [System.Collections.ArrayList]$_toInstall = @()
 
     MediaStack([string]$SystemConfig, [string]$UserConfig){
-        $this._LoadHost()
+        $this._FormatConsole()
         $this.Paths.config.system = $SystemConfig
         $this.Paths.config.user = $UserConfig
     }
 
-    hidden [void]_LoadHost(){
+    hidden [bool]_isInstalled([string]$name){
+        $app_key = Get-ChildItem "HKLM:\\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" | ?{$_.name -like "*$name*"}
+        if(!$app_key){ return $false }
+        else{ return $true }
+    }
+
+    hidden [void]_FormatConsole(){
         $psHost = Get-Host
         $Window = $psHost.UI.RawUI
 
@@ -40,10 +47,20 @@ class MediaStack {
         $Window.WindowSize = $windowSize
     }
 
-    [void]_DownloadDependencies(){
+    hidden [void]_CheckDependencies(){
+        $this._Logger.WriteLog([LogType]::INFO, "Checking for required installed apps")
+        $this.Config.system.APPS.forEach({
+            if(!($this._isInstalled($_.name))){
+                $this._Logger.WriteLog([LogType]::WARN, "App $($_.name) not installed")
+                $this._toInstall.Add($_) | Out-Null
+            }
+        })
+    }
+
+    hidden [void]_DownloadDependencies(){
 
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
-        [System.Collections.ArrayList]$Apps = $this.Config.system.APPS.forEach({
+        [System.Collections.ArrayList]$Apps = $this._toInstall.forEach({
             $this._Logger.WriteLog([LogType]::INFO,"Getting config for app: $full_name")
             $full_name = "$($_.name)-$($_.version).$($_.type)"
             $url = "$($this.Config.system.'BASE_URL')/$($this.Config.system.'RELEASE')/$full_name"

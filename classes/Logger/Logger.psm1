@@ -122,7 +122,7 @@ class Logger {
         [string]$logMessage = $TimeStamp + "[$_messageType]" + $_message
 
         if($this.OutputConsole){
-            [string]$color = "white"
+            [string]$color = "cyan"
             [string]$type =
             switch($_messageType){
                 [LogType]::INFO { $color = "cyan" }
