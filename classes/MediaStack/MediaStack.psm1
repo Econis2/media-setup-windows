@@ -7,6 +7,11 @@ using module "..\Logger\LogType\LogType.psm1"
 using module "..\DownloadManager\DownloadManager.psm1"
 using module "..\DownloadManager\DownloadConfig\DownloadConfig.psm1"
 
+
+$env:WARN = [LogType]::WARN
+$env:ERROR = [LogType]::ERROR
+$env:INFO = [LogType]::INFO
+
 class MediaStack {
     # Public Properties
     $Paths = @{
@@ -21,6 +26,7 @@ class MediaStack {
     }
     
     # Private Properties
+    hidden [int]$_Stage = 0
     hidden [Logger]$_Logger = [Logger]::new($true, $true)
     hidden [System.Collections.ArrayList]$_toInstall = @()
 
@@ -38,9 +44,15 @@ class MediaStack {
 
     # hidden 
     [bool]_isInstalled([string]$name){
-        $app_key = Get-ItemPropertyValue (Get-ChildItem "HKLM:\\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" | ?{$_.name -like "*$name*"}).Name.replace("HEKY_LOCAL_MACHINE",'HKLM:\') -Name DisplayName
-        if(!$app_key.contains($name)){ return $false }
-        else{ return $true }
+        try{
+            $app_key = Get-ItemPropertyValue (Get-ChildItem "HKLM:\\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" | ?{$_.name -like "*$name*"}).Name.replace("HEKY_LOCAL_MACHINE",'HKLM:\') -Name DisplayName
+            if(!$app_key.contains($name)){ return $false }
+            else{ return $true }
+        }
+        catch {
+            return $false
+        }
+
     }
 
     hidden [void]_FormatConsole(){
@@ -59,52 +71,70 @@ class MediaStack {
     }
 
     # hidden 
-    [void]_CheckDependencies(){
-        $this._Logger.WriteLog([LogType]::INFO, "Checking for required installed apps")
-        $this.Config.system.APPS.forEach({
-
-            if($_.name -eq "dotNet"){
-   
+    [void]_GetMediaStackDependencies(){
+        $this._Logger.WriteLog($env:INFO, "Checking for MediaStack Depedencies")
+        $this.Config.system.'PRE-REQ'.forEach({
+            $NAME = $_.name
+            if($NAME -eq "dotNet"){ # dotNet
                 $val = $(Get-ChildItem -Path 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full' -ErrorAction SilentlyContinue)
                 if($val){
-                    return $val.GetValue('release') -gt $Versions[$version]
+                    if(!$val.GetValue('release') -gt $_.check){
+                        $this._Logger.WriteLog($env:WARN, "App $($NAME) not installed")
+                        $this._toInstall.Add($_) | Out-Null
+                        ($this.Config.system.'DEPENDENCIES' | ?{$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)" 
+                    }
                 }
-            }else{
-                if(!($this._isInstalled($_.name))){
-                    $this._Logger.WriteLog([LogType]::WARN, "App $($_.name) not installed")
-                    $this._toInstall.Add($_) | Out-Null
-                }
-            }
-
-
+            }           
         })
+
+        $this._DownloadReady() # Download Dependencies
     }
 
-    # hidden 
-    [void]_DownloadDependencies(){
+    [void]_GetMediaStackApps(){
+        $this._Logger.WriteLog($env:INFO, "Checking for MediaStack Apps")
+        $this.Config.system.APPS.forEach({
+            $NAME = $_.name
+            if(!($this._isInstalled($NAME))){
+                $this._Logger.WriteLog($env:WARN, "App $NAME not installed")
+                $this._toInstall.Add($_) | Out-Null
+                ($this.Config.system.'APPS' | ?{$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)" 
 
-        $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
+            }
+        })
+
+        $this._DownloadReady() # Download Required Files
+    }
+
+
+    # hidden 
+    [void]_DownloadReady(){
+
+        $this._Logger.WriteLog($env:INFO,"Collection Download Details")
+
         [System.Collections.ArrayList]$Apps = $this._toInstall.forEach({
-            $this._Logger.WriteLog([LogType]::INFO,"Getting config for app: $full_name")
             $full_name = "$($_.name)-$($_.version).$($_.type)"
+            $this._Logger.WriteLog($env:INFO,"Getting config for app: $full_name")
             $url = "$($this.Config.system.'BASE_URL')/$($this.Config.system.'RELEASE')/$full_name"
             $path = "$env:APP_TEMP\$full_name"
             return [DownloadConfig]::new($url, $path)
         })
-        $this._Logger.WriteLog([LogType]::INFO,"Downloading Dependency Applications")
+
+        $this._Logger.WriteLog($env:INFO,"Downloading Applications")
         while($Apps.Count -ne 0){
             [DownloadManager]::new($this._Logger).DownloadFiles($Apps)
 
-            $this._Logger.WriteLog([LogType]::INFO,"Verifying Apps have successfully downloaded")
+            $this._Logger.WriteLog($env:INFO,"Verifying Apps have successfully downloaded")
             for($x=0; $x -lt $Apps.Count; $x++){
-                $this._Logger.WriteLog([LogType]::INFO,"Checking $($Apps[$x].Path)")
+                $this._Logger.WriteLog($env:INFO,"Checking $($Apps[$x].Path)")
                 if(Test-Path $Apps[$x].Path){
-                    $this._Logger.WriteLog([LogType]::INFO,"App Found")
+                    $this._Logger.WriteLog($env:INFO,"App Found")
                     $Apps.RemoveAt($x)
                     $x = $x -1
                 }
             }
         }
+
+        $this._toInstall = [System.Collections.ArrayList]@()
     }
 
     # hidden 
@@ -122,16 +152,33 @@ class MediaStack {
     # hidden 
     [bool]_LoadConfig([string]$Name){
         try{
-            $this._Logger.WriteLog([LogType]::INFO,"Getting $Name config from: $($this.Paths.config.$Name)")
+            $this._Logger.WriteLog($env:INFO,"Getting $Name config from: $($this.Paths.config.$Name)")
             $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config.$Name -Raw -ErrorAction Stop) -ErrorAction Stop
             $this.Config.$Name = $_config
         }
         catch {
-            $this._Logger.WriteLog([LogType]::ERROR,"Error Getting $Name config from: $($this.Paths.config.$Name)")
-            $this._Logger.WriteLog([LogType]::ERROR,"$($_.Exception.Message)")
+            $this._Logger.WriteLog($env:ERROR,"Error Getting $Name config from: $($this.Paths.config.$Name)")
+            $this._Logger.WriteLog($env:ERROR,"$($_.Exception.Message)")
             return $false
         }
         return $true   
     }
 
+    [bool]_CreateAppConfig([string]$PATH, $config){
+        $this._Logger.WriteLog()
+        $ini = "[Setup]`n"
+        $config.Keys.forEach({
+            $ini += "$_=$($config.$_)`n"
+        })
+
+        try{
+            $ini | Out-File $PATH -ErrorAction Stop
+        }
+        catch{
+
+            return $false
+        }
+
+        return $true
+    }
 }

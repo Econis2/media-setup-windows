@@ -1,20 +1,23 @@
 {
     "RELEASE": "0.0.1",
     "BASE_URL": "https://github.com/Econis2/media-setup-windows/releases/download",
-    "APPS": [
+    "DEPENDENCIES": [
         {
             "name": "dotNet",
             "type": "exe",
             "version": "4.7.2",
+            "check": 41808,
             "restart": true,
             "args": "/q /norestart"
-        },
+        }
+    ],
+    "APPS": [
         {
             "name": "deluge",
             "type": "exe",
             "version": "1.3.15",
             "restart": false,
-            "args": ""
+            "args": "/S"
         },
         {
             "name": "nzbget",
@@ -35,7 +38,14 @@
             "type": "exe",
             "version": "0.2.0.1504",
             "restart": false,
-            "args": ""
+            "args": "/SP- /SILENT /VERYSILENT /NORESTART /SUPRESSMSGBOXES /LOADINF={path}",
+            "config": {
+                "Lang": "english",
+                "Dir": "C:\\ProgramData\\Radarr\\bin",
+                "Group": "Radarr",
+                "NoIcons": 0,
+                "Tasks": null
+            }
         },
         {
             "name": "sonarr",

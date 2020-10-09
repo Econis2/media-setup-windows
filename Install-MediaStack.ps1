@@ -3,13 +3,14 @@ using module "classes\MediaStack\MediaStack.psm1"
 
 $env:APP_TEMP = "C:/Users/Administrator/Desktop/Apps"
 
-New-Item -Path $env:APP_TEMP -ItemType Directory
+New-Item -Path $env:APP_TEMP -ItemType Directory -ErrorAction SilentlyContinue
 
 $MS = [MediaStack]::new("configs/system-config.json","configs/user-config.json")
 
 
 $MS._LoadSystemConfig()
-$MS._CheckDependencies()
+$MS._GetMediaStackDependencies() # Download Only
+$MS._GetMediaStackApps() # Download Only
 # param(
 #     [Parameter(Position=0)]
 #     [int]$Stage = 0
