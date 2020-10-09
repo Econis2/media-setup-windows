@@ -1,3 +1,7 @@
+##
+# -- Import Wrappers -- #
+
+##
 using module "..\Logger\Logger.psm1"
 using module "..\Logger\LogType\LogType.psm1"
 using module "..\DownloadManager\DownloadManager.psm1"
@@ -26,9 +30,16 @@ class MediaStack {
         $this.Paths.config.user = $UserConfig
     }
 
-    hidden [bool]_isInstalled([string]$name){
-        $app_key = Get-ChildItem "HKLM:\\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" | ?{$_.name -like "*$name*"}
-        if(!$app_key){ return $false }
+    # [void] TEST(){
+    #     $this._FormatConsole()
+    #     $this._LoadSystemConfig()
+    #     $this._CheckDependencies()
+    # }
+
+    # hidden 
+    [bool]_isInstalled([string]$name){
+        $app_key = Get-ItemPropertyValue (Get-ChildItem "HKLM:\\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" | ?{$_.name -like "*$name*"}).Name.replace("HEKY_LOCAL_MACHINE",'HKLM:\') -Name DisplayName
+        if(!$app_key.contains($name)){ return $false }
         else{ return $true }
     }
 
@@ -47,17 +58,30 @@ class MediaStack {
         $Window.WindowSize = $windowSize
     }
 
-    hidden [void]_CheckDependencies(){
+    # hidden 
+    [void]_CheckDependencies(){
         $this._Logger.WriteLog([LogType]::INFO, "Checking for required installed apps")
         $this.Config.system.APPS.forEach({
-            if(!($this._isInstalled($_.name))){
-                $this._Logger.WriteLog([LogType]::WARN, "App $($_.name) not installed")
-                $this._toInstall.Add($_) | Out-Null
+
+            if($_.name -eq "dotNet"){
+   
+                $val = $(Get-ChildItem -Path 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full' -ErrorAction SilentlyContinue)
+                if($val){
+                    return $val.GetValue('release') -gt $Versions[$version]
+                }
+            }else{
+                if(!($this._isInstalled($_.name))){
+                    $this._Logger.WriteLog([LogType]::WARN, "App $($_.name) not installed")
+                    $this._toInstall.Add($_) | Out-Null
+                }
             }
+
+
         })
     }
 
-    hidden [void]_DownloadDependencies(){
+    # hidden 
+    [void]_DownloadDependencies(){
 
         $this._Logger.WriteLog([LogType]::INFO,"Collection Application Dependency details")
         [System.Collections.ArrayList]$Apps = $this._toInstall.forEach({
@@ -83,17 +107,20 @@ class MediaStack {
         }
     }
 
-    hidden [bool]_LoadSystemConfig(){
+    # hidden 
+    [bool]_LoadSystemConfig(){
         if(!$this._LoadConfig("system")){ return $false}
         return $true
     }
 
-    hidden [bool]_LoadUserConfig(){
+    # hidden 
+    [bool]_LoadUserConfig(){
         if(!$this._LoadConfig("user")){ return $false}
         return $true
     }
 
-    hidden [bool]_LoadConfig([string]$Name){
+    # hidden 
+    [bool]_LoadConfig([string]$Name){
         try{
             $this._Logger.WriteLog([LogType]::INFO,"Getting $Name config from: $($this.Paths.config.$Name)")
             $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config.$Name -Raw -ErrorAction Stop) -ErrorAction Stop
@@ -106,4 +133,5 @@ class MediaStack {
         }
         return $true   
     }
+
 }

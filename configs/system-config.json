@@ -7,57 +7,49 @@
             "type": "exe",
             "version": "4.7.2",
             "restart": true,
-            "args": "/q /norestart",
-            "wrapper": "./wrappers/dotNet.psm1",
-            "expression": "Get-DotNetDownloadLink -Version (Get-Variable -name APPLICATION).version -Result (Get-Variable -name URL)"
+            "args": "/q /norestart"
         },
         {
             "name": "deluge",
             "type": "exe",
             "version": "1.3.15",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         },
         {
             "name": "nzbget",
             "type": "exe",
             "version": "21.0",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         },
         {
             "name": "jackett",
             "type": "exe",
             "version": "0.16.1356",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         },
         {
             "name": "radarr",
             "type": "exe",
             "version": "0.2.0.1504",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         },
         {
             "name": "sonarr",
             "type": "exe",
             "version": "3.0.3.928",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         },
         {
             "name": "plexServer",
             "type": "exe",
             "version": "1.20.1.3252",
             "restart": false,
-            "args": "",
-            "expression": ""
+            "args": ""
         }
     ]
 }

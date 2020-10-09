@@ -1,79 +1,91 @@
-param(
-    [Parameter(Position=0)]
-    [int]$Stage = 0
-)
-
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# Import the Installer Function
-Import-Module ".\Utilities.psm1"
-Import-Module ".\DotNet-Utilities.psm1"
-
-# Will Be YAML File Settings
-$UCR = 0
-Import-UserConfig -Path ".\user-config.json" -Result ([ref]$UCR)
-if($UCR -ne 200){ Exit 500 }
-
-$MEDIA_CONFIG = "" 
-Import-MediaConfig -Path ".\media-config.json" -Result ([ref]$MEDIA_CONFIG)
-if($MEDIA_CONFIG -eq 500){ Exit 500 }
-
-$ISR = 0
-Initialize-Setup -Result ([ref]$ISR)
-if( $ISR -ne 200 ){ Exit 500 }
-
-[System.Collection.Arraylist]$PID_POOL = @()
-$PWSH_PATH = "$env:SystemRoot\system32\WindowsPowershell\v1.0\powershell.exe"
-$ROOT_URL = "https://github.com/Econis2/media-setup-windows/releases/download/$($MEDIA_CONFIG.RELEASE)/"
-
-#### Download All the required Apps ASYNC
-for($x = $Stage; $x -lt $MEDIA_CONFIG.APPS.length; $x++ ){
-    $app = $MEDIA_CONFIG.APPS[$x]
-    $APP_NAME = "$($app.name)-$($app.version).$($app.type)"
-    $APP_PATH = "$TEMP_PATH\$APP_NAME"
-    $Url = $ROOT_URL + $APP_NAME
-    $command = @"
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-[System.Net.WebClient]::new().DownloadFile('$Url', '$APP_PATH')
-"@
-    $EncodedCommand = [Convert]::ToBase64String( ([System.Text.Encoding]::Unicode.GetBytes($command)) )
-    $app_id = Start-Process -FilePath $PWSH_PATH -WindowStyle Hidden -PassThru -ArgumentList "-encodedCommand $EncodedCommand"
-
-    $PID_POOL.add(@{
-        proc = $app_id
-        done = $false
-    }) | Out-Null
-}
+using module "classes\MediaStack\MediaStack.psm1"
 
 
-$timer = [System.Diagnostics.Stopwatch]::new()
-$timer.Start()
-$x = 0
+$env:APP_TEMP = "C:/Users/Administrator/Desktop/Apps"
 
-$ALL_DONE = $false
+New-Item -Path $env:APP_TEMP -ItemType Directory
 
-while(!$ALL_DONE){
-    $check_pool = $PID_POOL | ?{$_.done -eq $false}
+$MS = [MediaStack]::new("configs/system-config.json","configs/user-config.json")
 
-    $Status = "$($check_pool.length) of $($PID_POOL.length)"
-    Write-Progress -PercentComplete $x -Activity $Status -Status "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
 
-    if($x -lt 100){ $x = $x++ }
-    else{ $x = 0 }
+$MS._LoadSystemConfig()
+$MS._CheckDependencies()
+# param(
+#     [Parameter(Position=0)]
+#     [int]$Stage = 0
+# )
 
-    Start-Sleep -Seconds 1
+# [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    $check_pool = $PID_POOL | ?{$_.done -eq $false}
-    if($check_pool.length -gt 0){
-        $PID_POOL.forEach({
-            if($_.proc.HasExited){ $_.done = $true }
-        })
-    }
-    else{ $ALL_DONE = $true }
+# # Import the Installer Function
+# Import-Module ".\Utilities.psm1"
+# Import-Module ".\DotNet-Utilities.psm1"
 
-}
+# # Will Be YAML File Settings
+# $UCR = 0
+# Import-UserConfig -Path ".\user-config.json" -Result ([ref]$UCR)
+# if($UCR -ne 200){ Exit 500 }
 
-$timer.Stop()
+# $MEDIA_CONFIG = "" 
+# Import-MediaConfig -Path ".\media-config.json" -Result ([ref]$MEDIA_CONFIG)
+# if($MEDIA_CONFIG -eq 500){ Exit 500 }
+
+# $ISR = 0
+# Initialize-Setup -Result ([ref]$ISR)
+# if( $ISR -ne 200 ){ Exit 500 }
+
+# [System.Collection.Arraylist]$PID_POOL = @()
+# $PWSH_PATH = "$env:SystemRoot\system32\WindowsPowershell\v1.0\powershell.exe"
+# $ROOT_URL = "https://github.com/Econis2/media-setup-windows/releases/download/$($MEDIA_CONFIG.RELEASE)/"
+
+# #### Download All the required Apps ASYNC
+# for($x = $Stage; $x -lt $MEDIA_CONFIG.APPS.length; $x++ ){
+#     $app = $MEDIA_CONFIG.APPS[$x]
+#     $APP_NAME = "$($app.name)-$($app.version).$($app.type)"
+#     $APP_PATH = "$TEMP_PATH\$APP_NAME"
+#     $Url = $ROOT_URL + $APP_NAME
+#     $command = @"
+# [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# [System.Net.WebClient]::new().DownloadFile('$Url', '$APP_PATH')
+# "@
+#     $EncodedCommand = [Convert]::ToBase64String( ([System.Text.Encoding]::Unicode.GetBytes($command)) )
+#     $app_id = Start-Process -FilePath $PWSH_PATH -WindowStyle Hidden -PassThru -ArgumentList "-encodedCommand $EncodedCommand"
+
+#     $PID_POOL.add(@{
+#         proc = $app_id
+#         done = $false
+#     }) | Out-Null
+# }
+
+
+# $timer = [System.Diagnostics.Stopwatch]::new()
+# $timer.Start()
+# $x = 0
+
+# $ALL_DONE = $false
+
+# while(!$ALL_DONE){
+#     $check_pool = $PID_POOL | ?{$_.done -eq $false}
+
+#     $Status = "$($check_pool.length) of $($PID_POOL.length)"
+#     Write-Progress -PercentComplete $x -Activity $Status -Status "[Hours]$($timer.Elapsed.Hours) [Minutes]$($timer.Elapsed.Minutes) [Seconds]$($timer.Elapsed.Seconds)"
+
+#     if($x -lt 100){ $x = $x++ }
+#     else{ $x = 0 }
+
+#     Start-Sleep -Seconds 1
+
+#     $check_pool = $PID_POOL | ?{$_.done -eq $false}
+#     if($check_pool.length -gt 0){
+#         $PID_POOL.forEach({
+#             if($_.proc.HasExited){ $_.done = $true }
+#         })
+#     }
+#     else{ $ALL_DONE = $true }
+
+# }
+
+# $timer.Stop()
 
 # for($x = $Stage; $x -lt $MEDIA_CONFIG.APPS.length; $x++){
 #     $APPLICATION = $MEDIA_CONFIG.APPS[$x]
