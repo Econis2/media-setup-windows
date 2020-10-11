@@ -4,13 +4,11 @@ using module "..\DownloadManager\DownloadManager.psm1"
 using module "..\DownloadManager\DownloadConfig\DownloadConfig.psm1"
 using module "..\Utilities\Utilities.psm1"
 
-
 $env:WARN = [LogType]::WARN
 $env:ERROR = [LogType]::ERROR
 $env:INFO = [LogType]::INFO
 
 enum Stage {
-    LOAD
     DEP_DOWNLOAD
     DEP_INSTALL
     APP_DOWNLOAD
@@ -36,12 +34,11 @@ class MediaStack {
     # Private Properties
     hidden [Utilities]$_Util = [Utilities]::new()
     hidden [int]$_Task = 0
-    hidden [Stage]$_Stage = [Stage]::LOAD
-    hidden [Logger]$_Logger = [Logger]::new($true, $true)
+    hidden [Stage]$_Stage = [Stage]::DEP_DOWNLOAD
+    hidden [Logger]$_Logger
     hidden [System.Collections.ArrayList]$_toDownload = @()
 
     MediaStack([string]$SystemConfig, [string]$UserConfig){
-        #$this._FormatConsole()
         $this.Paths.config.system = $SystemConfig
         $this.Paths.config.user = $UserConfig
     }
@@ -50,25 +47,21 @@ class MediaStack {
     [void]SetStage([Stage]$stage){ $this._Stage = $stage }
     
     [void]Setup(){
+
+        $this._Load() # Needs to Happen EveryTime
+        # Gets Configs, Creates User (if Needed)
+        # Restarts as User
+
         while($this._Stage -ne [Stage]::COMPLETED){
             switch($this._Stage){
 
-                [Stage]::LOAD {
-                    $this._Logger.WriteLog($env:INFO, "Entering Stage LOAD")
-                    # Run $this._Load()
-                    # Gets Configs, Creates User (if Needed)
-                    $this._Load()
-                    # Restarts as User
-                    # Stage increases
-                    break # incase restart fails - this task will repeat
-                }
-    
                 [Stage]::DEP_DOWNLOAD {
                     $this._Logger.WriteLog($env:INFO, "Entering Stage DEP_DOWNLOAD")
                     # Continue setup - Downloads
                     # $this._GetMediaStackDepedencies()
                     # downloads .NET (other dep - none atm)
-                    $this._GetMediaStackDependencies()
+                    
+                    #$this._GetMediaStackDependencies()
                     $this.SetStage([Stage]::DEP_INSTALL)
                     break # Move to Next Stage
                 }
@@ -78,7 +71,8 @@ class MediaStack {
                     # Continue setup - Install
                     # $this._InstallMediaStackDependencies()
                     # installs .Net - requires restart
-                    $this._InstallMediaStackDependencies()
+                    
+                    #$this._InstallMediaStackDependencies()
                     $this.SetStage([Stage]::APP_DOWNLOAD)
                     break # Move to Next Stage
                 }
@@ -88,7 +82,8 @@ class MediaStack {
                     # Continue setup -  Downloads
                     # $this._GetMediaStackApps()
                     # downloads Sonarr, Radarr, Jackett, Deluge, nzbget, Plex Server
-                    $this._GetMediaStackApps()
+                    
+                    #$this._GetMediaStackApps()
                     $this.SetStage([Stage]::APP_INSTALL)
                     break # Move to Next Stage
 
@@ -99,7 +94,8 @@ class MediaStack {
                     # Continue setup - Install
                     # $this._InstallMediaStackApps()
                     # installs Sonarr, Radarr, Jackett, Deluge, nzbget, Plex Server
-                    $this._InstallMediaStackApps()
+                    
+                    #$this._InstallMediaStackApps()
                     $this.SetStage([Stage]::COMPLETED)
                     break # End For now
                 }
@@ -108,39 +104,40 @@ class MediaStack {
     }
 #### CONFIGURATION ####
 
-    hidden [bool]_LoadConfig([string]$Name){
+    hidden [void]_LoadConfig([string]$Name){
         try{
-            $this._Logger.WriteLog($env:INFO,"Getting $Name config from: $($this.Paths.config.$Name)")
+            Write-Host "Getting $Name config from: $($this.Paths.config.$Name)" -ForegroundColor cyan
             $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config.$Name -Raw -ErrorAction Stop) -ErrorAction Stop
             $this.Config.$Name = $_config
         }
-        catch {
-            $this._Logger.WriteLog($env:ERROR,"Error Getting $Name config from: $($this.Paths.config.$Name)")
-            $this._Logger.WriteLog($env:ERROR,"$($_.Exception.Message)")
-            return $false
-        }
-        return $true   
-    }
-
-    hidden [bool]_LoadSystemConfig(){
-        if(!$this._LoadConfig("system")){ return $false}
-        return $true
-    }
-
-    hidden [bool]_LoadUserConfig(){
-        if(!$this._LoadConfig("user")){ return $false}
-        return $true
+        catch { Throw $_.Exception.Message }
     }
 
     hidden [void]Load(){
         
-        if(!$this._LoadSystemConfig){ # Load System Config File
-            $this._Logger.WriteLog($env:ERROR,"Unable to Load System Config File")
-            Throw "Unable to Load System Config File"
+        try{ # Load User Configuration
+            $this._LoadConfig('user')
+
+            if($this.Config.user.LOG_PATH.trim() -eq "" -or !$this.Config.user.LOG_PATH){
+                $this._Logger = [Logger]::new($true, $true, "$env:APPDATA\MediaStack\install.log")
+                $this.Config.user.LOG_PATH = "$env:APPDATA\MediaStack\install.log"
+            }
+            else { $env:LOG_PATH = $this.Config.user.LOG_PATH.trim() }
+
+            if($this.Config.user.TEMP_PATH.trim() -eq "" -or !$this.Config.user.TEMP_PATH){
+                $this.Config.user.TEMP_PATH = "$env:APPDATA\MediaStack"
+                $env:APP_TEMP = "$env:APPDATA\MediaStack"
+            }
+            else{ $env:TEMP_PATH = $this.Config.user.TEMP_PATH.trim() }
+
         }
-        if(!$this._LoadUserConfig){ # Load User Conig File
-            $this._Logger.WriteLog($env:ERROR,"Unable to Load User Config File")
-            Throw "Unable to Load User Config File"
+        catch{ Throw $_.Exception.Message }
+
+        try{ $this._LoadConfig('system') } # Load System Config
+        catch{
+            $this._Logger.WriteLog($env:ERROR,"Unable to Load System Config File")
+            $this._Logger.WriteLog($env:ERROR,$_.Exception.Message)
+            Throw "Unable to Load System Config File"
         }
 
         if(!$this.Config.user.SETUP.DEFAULT_USER -or $this.Config.user.SETUP.DEFAULT_USER.trim() -eq ""){
@@ -177,7 +174,7 @@ class MediaStack {
             Throw "Unable to setup Autologon"
         }
 
-        if($env:username -ne $this.Config.user.SETUP.DEFAULT_USER){
+        if($env:username -ne $this.Config.user.SETUP.DEFAULT_USER){ # Reboot to Required User, if Needed
             try{ # Set To Run After Reboot
                 $this._SetRunOnce([Stage]::DEP_DOWNLOAD,0)
                 Restart-Computer -Force
@@ -316,6 +313,18 @@ class MediaStack {
 ####--------------####
 #### UTILTIES ####
 
+hidden [void]_SaveConfig([string]$config){
+    try{ 
+        $this._Logger.WriteLog($env:INFO, "Saving Config: $config")
+        (ConvertTo-Json $this.Config.$config -ErrorAction Stop) | Out-File "$env:APP_TEMP\$config-config.json" -ErrorAction Stop 
+    }
+    catch{
+        $this._Logger.WriteLog($env:ERROR, "Unable to Save Config: $config")
+        $this._Logger.WriteLog($env:ERROR, $_.Exception.Message)
+        Throw "Unable to save Config: $config"
+    }
+}
+
 hidden [void]_SetAutoLogin(){
     try{
         $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon'
@@ -330,12 +339,25 @@ hidden [void]_SetAutoLogin(){
     }
 }
 
+hidden [void]_RemoveAutoLogin(){
+        $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon'
+        Remove-ItemProperty $regPath -Name "AutoAdminLogon" -ErrorAction SilentlyContinue
+        Remove-ItemProperty $regPath -Name "DefaultUsername" -ErrorAction SilentlyContinue
+        Remove-ItemProperty $regPath -Name "DefaultPassword" -ErrorAction SilentlyContinue
+}
+
 hidden [void]_SetRunOnce([Stage]$Stage,[int]$Task){
-    try{
+    try{ # Backup Configs - To Temp Directory
+        $this._SaveConfig("system")
+        $this._SaveConfig("user")
+    }
+    catch{ Throw $_.Exception.Message }
+    
+    try{ # Create Command, and RunOnce Key
         $command = @"
 using module "$PSScriptRoot\classes\MediaStack\MediaStack.psm1"
         
-`$MediaStack = [MediaStack]::new("$($this.Paths.config.user)","$($this.Paths.config.system)")
+`$MediaStack = [MediaStack]::new("$($env:APP_TEMP)\system-config.json","$($env:APP_TEMP)\user-config.json")
 `$MediaStack.SetStage($Stage)
 `$MediaStack.SetTask($Task)
 `$MediaStack.Setup()
@@ -351,23 +373,11 @@ using module "$PSScriptRoot\classes\MediaStack\MediaStack.psm1"
         
         $this._Logger.WriteLog($env:INFO,"Success Setting RunOnce Key for User: $env:username")
 
-        
-
     }
     catch{
         $this._Logger.WriteLog($env:ERROR,"Error Setting RunOnce Key for User: $env:username")
         $this._Logger.WriteLog($env:ERROR,$_.Exception.Message)
         Throw "Error Setting RunOnce Key for User: $env:username"
-    }
-
-    try{
-        $this._Logger.WriteLog($env:INFO,"Backing Up Configuration for reboot")
-        (ConvertTo-Json $this.Config.system -ErrorAction Stop) | Out-File $this.Paths.config.system -ErrorAction Stop
-    }
-    catch{
-        $this._Logger.WriteLog($env:ERROR,"Unable to create backup, setup cannot continue")
-        $this._Logger.WriteLog($env:INFO,$_.Exception.Message)
-        Throw "Unable to create backup, setup cannot continue"
     }
 }
 

@@ -56,7 +56,7 @@ class Logger {
         if($Console){ $this.OutputConsole = $true }
     }
 
-    Logger([string]$File, [string]$_logPath){
+    Logger([bool]$File, [string]$_logPath){
         if($File){
             try{ 
                 Get-Item -Path $_logPath -ErrorAction Stop
