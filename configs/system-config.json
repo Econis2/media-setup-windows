@@ -17,6 +17,7 @@
             "type": "exe",
             "version": "1.3.15",
             "restart": false,
+            "service": "",
             "args": "/S"
         },
         {
@@ -24,21 +25,29 @@
             "type": "exe",
             "version": "21.0",
             "restart": false,
-            "args": ""
+            "service": "",
+            "args": "/S"
         },
         {
             "name": "jackett",
             "type": "exe",
             "version": "0.16.1356",
             "restart": false,
-            "args": ""
+            "args": "/SP- /SILENT /VERYSILENT /NORESTART /SUPRESSMSGBOXES /LOADINF={path}/jackett.ini",
+            "config": {
+                "Lang": "english",
+                "Dir": "C:\\ProgramData\\Radarr\\bin",
+                "Group": "Radarr",
+                "NoIcons": 0,
+                "Tasks": null
+            }
         },
         {
             "name": "radarr",
             "type": "exe",
             "version": "0.2.0.1504",
             "restart": false,
-            "args": "/SP- /SILENT /VERYSILENT /NORESTART /SUPRESSMSGBOXES /LOADINF={path}",
+            "args": "/SP- /SILENT /VERYSILENT /NORESTART /SUPRESSMSGBOXES /LOADINF={path}/radarr.ini",
             "config": {
                 "Lang": "english",
                 "Dir": "C:\\ProgramData\\Radarr\\bin",
@@ -52,14 +61,22 @@
             "type": "exe",
             "version": "3.0.3.928",
             "restart": false,
-            "args": ""
+            "args": "/SP- /SILENT /VERYSILENT /NORESTART /SUPRESSMSGBOXES /LOADINF={path}/sonarr.ini",
+            "config": {
+                "Lang": "english",
+                "Dir": "C:\\ProgramData\\Sonarr\\bin",
+                "Group": "Radarr",
+                "NoIcons": 0,
+                "Tasks": null
+            }
         },
         {
             "name": "plexServer",
             "type": "exe",
             "version": "1.20.1.3252",
             "restart": false,
-            "args": ""
+            "service": "",
+            "args": "/install /quiet"
         }
     ]
 }

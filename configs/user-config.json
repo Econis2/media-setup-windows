@@ -1,6 +1,13 @@
 {
-    "DEFAULT_USER": "",
-    "DEFAULT_PASSWORD": "",
-    "LOG_PATH": "",
-    "TEMP_PATH": ""
+    "SETUP": {
+        "DEFAULT_USER": "",
+        "DEFAULT_PASSWORD": "",
+        "LOG_PATH": "",
+        "TEMP_PATH": ""
+    },
+    "SETTINGS": {
+        "AUTO_LOGIN": true,
+        "SERVICE": true
+    }
+
 }

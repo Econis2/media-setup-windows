@@ -1,0 +1,1 @@
+%systemroot%\system32\WindowsPowershell\v1.0\powershell.exe -ExecutionPolicy Bypass -command "{ using module ""%cd%\classes\MediaStack\MediaStack.psm1""; [MediaStack]::new(""%cd%\configs\system-config.json"",""%cd%\configs\system-config.json"").Setup()}"
