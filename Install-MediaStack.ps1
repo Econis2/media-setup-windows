@@ -4,9 +4,9 @@ param(
     [int]$Stage = 0
 )
 
-$env:APP_TEMP = "C:/Users/Administrator/Desktop/Apps"
+# $env:APP_TEMP = "C:/Users/Administrator/Desktop/Apps"
 
-New-Item -Path $env:APP_TEMP -ItemType Directory -ErrorAction SilentlyContinue
+# New-Item -Path $env:APP_TEMP -ItemType Directory -ErrorAction SilentlyContinue
 
 $MS = [MediaStack]::new("configs/system-config.json","configs/user-config.json")
 $MS.SetStage($Stage)
