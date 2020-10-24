@@ -128,6 +128,7 @@ class MediaStack {
 
     hidden [void]_Load(){
         try{
+            Write-host "Atttempting to load User Config" -ForegroundColor Cyan
             $this._LoadConfig('user') # Load User from File to Memory
             # Decrypt User Credentials
             $this.Config.user.DEFAULT_PASSWORD = [System.Management.Automation.PSCredential]::new("any", $this.Config.user.DEFAULT_PASSWORD).GetNetworkCredential().Password
