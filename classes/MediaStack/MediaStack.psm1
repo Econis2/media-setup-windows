@@ -9,6 +9,7 @@ $env:ERROR = [LogType]::ERROR
 $env:INFO = [LogType]::INFO
 
 enum Stage {
+    INIT
     DEP_DOWNLOAD
     DEP_INSTALL
     APP_DOWNLOAD
@@ -33,8 +34,9 @@ class MediaStack {
     
     # Private Properties
     hidden [Utilities]$_Util = [Utilities]::new()
+    hidden [bool]$_Reload = $false
     hidden [int]$_Task = 0
-    hidden [Stage]$_Stage = [Stage]::DEP_DOWNLOAD
+    hidden [Stage]$_Stage = [Stage]::INIT
     hidden [Logger]$_Logger
     hidden [System.Collections.ArrayList]$_toDownload = @()
 
@@ -45,34 +47,38 @@ class MediaStack {
 
     [void]SetTask([int]$task){ $this._Task = $task }
     [void]SetStage([Stage]$stage){ $this._Stage = $stage }
+    [void]Reload(){ $this._Reload = $true }
     
     [void]Setup(){
 
-        $this._Load() # Needs to Happen EveryTime
-        # Gets Configs, Creates User (if Needed)
-        # Restarts as User
+        if($this._Reload){ $this._Load() }
 
         while($this._Stage -ne [Stage]::COMPLETED){
             switch($this._Stage){
+                [Stage]::INIT {
+                    # Run Init - Possibly Reboot to User
+                    $this._Init()
+                    # No Reboot, set to next stage and Continue
+                    $this.SetStage([Stage]::DEP_DOWNLOAD)
+                    break
+                }
 
                 [Stage]::DEP_DOWNLOAD {
                     $this._Logger.WriteLog($env:INFO, "Entering Stage DEP_DOWNLOAD")
                     # Continue setup - Downloads
-                    # $this._GetMediaStackDepedencies()
                     # downloads .NET (other dep - none atm)
                     
-                    #$this._GetMediaStackDependencies()
+                    $this._GetMediaStackDependencies()
                     $this.SetStage([Stage]::DEP_INSTALL)
                     break # Move to Next Stage
                 }
 
+
                 [Stage]::DEP_INSTALL {
                     $this._Logger.WriteLog($env:INFO, "Entering Stage DEP_INSTALL")
                     # Continue setup - Install
-                    # $this._InstallMediaStackDependencies()
                     # installs .Net - requires restart
-                    
-                    #$this._InstallMediaStackDependencies()
+                    $this._InstallApps('DEPENDENCIES')
                     $this.SetStage([Stage]::APP_DOWNLOAD)
                     break # Move to Next Stage
                 }
@@ -80,10 +86,8 @@ class MediaStack {
                 [Stage]::APP_DOWNLOAD {
                     $this._Logger.WriteLog($env:INFO, "Entering Stage APP_DOWNLOAD")
                     # Continue setup -  Downloads
-                    # $this._GetMediaStackApps()
                     # downloads Sonarr, Radarr, Jackett, Deluge, nzbget, Plex Server
-                    
-                    #$this._GetMediaStackApps()
+                    $this._GetMediaStackApps()
                     $this.SetStage([Stage]::APP_INSTALL)
                     break # Move to Next Stage
 
@@ -96,6 +100,12 @@ class MediaStack {
                     # installs Sonarr, Radarr, Jackett, Deluge, nzbget, Plex Server
                     
                     #$this._InstallMediaStackApps()
+                    $this.SetStage([Stage]::CLEAN_UP)
+                    break # End For now
+                }
+
+                [Stage]::CLEAN_UP {
+                    $this._Logger.WriteLog($env:INFO, "Installation and Configuration completed, performing clean up")
                     $this.SetStage([Stage]::COMPLETED)
                     break # End For now
                 }
@@ -109,26 +119,54 @@ class MediaStack {
             Write-Host "Getting $Name config from: $($this.Paths.config.$Name)" -ForegroundColor cyan
             $_config = ConvertFrom-Json -InputObject $(Get-Content -Path $this.Paths.config.$Name -Raw -ErrorAction Stop) -ErrorAction Stop
             $this.Config.$Name = $_config
+
+            Write-Host "Removing File: $($this.Paths.config.$Name)" -ForegroundColor cyan
+            $null = Remove-Item -Path $this.Paths.config.$Name -ErrorAction Stop | Out-Null
         }
         catch { Throw $_.Exception.Message }
     }
 
-    hidden [void]Load(){
+    hidden [void]_Load(){
+        try{
+            $this._LoadConfig('user') # Load User from File to Memory
+            # Decrypt User Credentials
+            $this.Config.user.DEFAULT_PASSWORD = [System.Management.Automation.PSCredential]::new("any", $this.Config.user.DEFAULT_PASSWORD).GetNetworkCredential().Password
+            
+            $env:LOG_PATH = $this.Config.user.LOG_PATH # Set Log Path
+            $this._Logger = [Logger]::new($true, $true, $env:LOG_PATH) # Set Logger to Config Path
+            $env:APP_TEMP = $this.Config.user.TEMP_PATH # Set Temp Directory
+            $this._LoadConfig('system') # Load System Config
+
+            $this._Reload = $false
+        }
+        catch{ Throw $_.Exception.Message }
+    }
+
+    hidden [void]_Init(){
         
         try{ # Load User Configuration
+            # Load from File to Memory
             $this._LoadConfig('user')
-
-            if($this.Config.user.LOG_PATH.trim() -eq "" -or !$this.Config.user.LOG_PATH){
-                $this._Logger = [Logger]::new($true, $true, "$env:APPDATA\MediaStack\install.log")
-                $this.Config.user.LOG_PATH = "$env:APPDATA\MediaStack\install.log"
+            
+            #### Log Path ####
+            if( (Test-Path -Path $this.Config.user.LOG_PATH.trim() -IsValid ) ){
+                $env:LOG_PATH = $this.Config.user.LOG_PATH.trim()
+                $this._Logger = [Logger]::new($true, $true, $env:LOG_PATH) # Set Logger to Config Path
             }
-            else { $env:LOG_PATH = $this.Config.user.LOG_PATH.trim() }
+            else{
+                # Using Default Log Path
+                $env:LOG_PATH = $this.Config.user.LOG_PATH.trim()
+                $this._Logger = [Logger]::new($true, $true, "$env:APPDATA\MediaStack\install.log") # Set Logger to created Log Path
+                $this.Config.user.LOG_PATH = "$env:APPDATA\MediaStack\install.log" # Set the Log Path in Memory to New Location
+            }
 
-            if($this.Config.user.TEMP_PATH.trim() -eq "" -or !$this.Config.user.TEMP_PATH){
+            #### Temp Directory ####
+            if( (Test-Path -Path $this.Config.user.TEMP_PATH.trim() -IsValid ) ){ $env:APP_TEMP = $this.Config.user.TEMP_PATH.trim() }
+            else{
+                # Using Default Log Path
                 $this.Config.user.TEMP_PATH = "$env:APPDATA\MediaStack"
                 $env:APP_TEMP = "$env:APPDATA\MediaStack"
             }
-            else{ $env:TEMP_PATH = $this.Config.user.TEMP_PATH.trim() }
 
         }
         catch{ Throw $_.Exception.Message }
@@ -140,7 +178,7 @@ class MediaStack {
             Throw "Unable to Load System Config File"
         }
 
-        if(!$this.Config.user.SETUP.DEFAULT_USER -or $this.Config.user.SETUP.DEFAULT_USER.trim() -eq ""){
+        if( ![string]::IsNullOrWhiteSpace($this.Config.user.SETUP.DEFAULT_USER) ){ # No Default User Specified
             $this._Logger.WriteLog($env:WARN,"No DEFAULT_USER specified in the user-config.json")
             $this._Logger.WriteLog($env:INFO,"Attempting to create new user: MediaStack")
             
@@ -151,7 +189,7 @@ class MediaStack {
                     -AccountNeverExpires `
                     -Description "User Created to Run for MediaStack" `
                     -Name "MediaStack"
-                    -Password (ConvertTo-SecureString -String $this.Config.user.SETUP.DEFAULT_PASSWORD -AsPlainText -Force)
+                    -Password (ConvertTo-SecureString -String $this.Config.user.SETUP.DEFAULT_PASSWORD -AsPlainText -Force -ErrorAction Stop)
                     -ErrorAction Stop
                 
                 $this._Logger.WriteLog($env:INFO,"User: MediaStack created")
@@ -187,10 +225,8 @@ class MediaStack {
         }
     }
 
-####---------------####
 #### DOWNLOADING ####
-
-    <#hidden [void]_DownloadReady(){
+    hidden [void]_DownloadReady(){
 
         if($this._toDownload.Count -gt 0){
             $this._Logger.WriteLog($env:INFO,"Collection Download Details")
@@ -216,7 +252,6 @@ class MediaStack {
                     }
                 }
             }
-
             $this._toDownload = [System.Collections.ArrayList]@()
         }
         else{ $this._Logger.WriteLog($env:INFO, "Nothing to Download") }
@@ -224,19 +259,23 @@ class MediaStack {
 
     hidden [void]_GetMediaStackDependencies(){
         $this._Logger.WriteLog($env:INFO, "Checking for MediaStack Depedencies")
-        $this.Config.system.'PRE-REQ'.forEach({
+        $this.Config.system.'DEPENDENCIES'.forEach({
             $NAME = $_.name
             if($NAME -eq "dotNet"){ # dotNet
+                $download = $false
                 $val = $(Get-ChildItem -Path 'HKLM:\SOFTWARE\Microsoft\Net Framwork Setup\NDP\v4\Full' -ErrorAction SilentlyContinue)
-                if($val){
-                    if(!$val.GetValue('release') -gt $_.check){
+                
+                if($val){ # .Net Installed
+                    if(!$val.GetValue('release') -gt $_.check){ # Checking Version
                         $this._Logger.WriteLog($env:WARN, "App $($NAME) not installed")
-
-                        if(!(Test-Path "$env:APP_TEMP/$NAME-$($_.version).$($_.type)")){
-                            $this._toDownload.Add($_) | Out-Null
-                            ($this.Config.system.'DEPENDENCIES' | ?{$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)"     
-                        }
+                        if(!(Test-Path "$env:APP_TEMP/$NAME-$($_.version).$($_.type)")){ $download = $true } # Checking Installer Path
                     }
+                }
+                else{ $download = $true }
+
+                if($download){
+                    $this._toDownload.Add($_) | Out-Null 
+                    ($this.Config.system.'DEPENDENCIES' | Where-Object {$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)"         
                 }
             }           
         })
@@ -250,58 +289,97 @@ class MediaStack {
             if(!($this._isInstalled($NAME))){
                 $this._Logger.WriteLog($env:WARN, "App $NAME not installed")
                 $this._toDownload.Add($_) | Out-Null
-                ($this.Config.system.'APPS' | ?{$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)" 
+                ($this.Config.system.'APPS' | Where-Object {$_.name -eq $NAME}).path = "$env:APP_TEMP/$NAME-$($_.version).$($_.type)" 
             }
         })
 
         $this._DownloadReady() # Download Required Files
-    }#>
+    }
 
-####-------------####
 #### INSTALLATION ####
 
-    <#hidden [void]_InstallApps([string]$Type){
-        for($x=$this._Task; $x -lt $($this.Config.system.$Type.Count); $x++){
-            try{
-                $dep = $this.Config.system.$Type[$x]
+    hidden [void]_SetupAppConfig($_App){ # Creates Install File if Needed
 
-                $this._Logger.WriteLog($env:INFO,"Installing App: $($_.name)")
-                Start-Process $_.path `
-                    -ArgumentList $_.args.split(' ') `
-                    -Wait `
-                    -ErrorAction Stop
+        if(!$_App.containsKey("file")){ return } # No File To configure
+        
+        try{
+            if($_App.file.contains('{path}')){
+                $path = "$env:APP_TEMP\$($_App.name).ini"
+                $_App.args = $_App.args + " " + $_App.file.replace('{path}',$path)
+                $_App.file = $_App.file.replace('{path}',$path)
     
-                if($dep.restart){
-                    # Set RunOnce - Should restart to this task, on the next app
-                    $Stage = $null
-                    switch($Type){
-                        "DEPENDENCIES" { $Stage = [Stage]::DEP_INSTALL }
-                        "APPS" { $Stage = [Stage]::APP_INSTALL }
-                    }
-                    $this._SetRunOnce($Stage ,$x++)
-    
-                    Restart-Computer -ErrorAction Stop
-                }
-            }
-            catch{
-                $this._Logger.WriteLog($env:ERROR,"Unable To install Application $($_.name)")
-                $this._Logger.WriteLog($env:ERROR,$_.Exception.Message)
-                Throw "Unable To install Application $($_.name)"
-            }
-        }
-        $this._Task = 0
-    }
+                $INI = "[Setup]`n"
+                $_App.config.Keys.forEach({
+                    $INI += "$_=$($_App.config[$_])`n"
+                })
 
-    hidden [void]_InstallMediaStackDependencies(){
-        Try{
-            $this._InstallApps("DEPENDENCIES")
+                $null = $INI | Out-File $path -ErrorAction Stop
+            }
         }
         catch{
-            Throw $_.Exception.Message
+            $this._Logger.WriteLog($env:ERROR,"Unable to create setup file for App $($_App.name)")
+            $this._Logger.WriteLog($env:ERROR, $_.Exception.Message)
+            Throw "Unable to create setup file for App $($_App.name)"
         }
+
     }
 
-    hidden [void]_InstallMediaStackApps(){
+    hidden [void]_SetupAppService($_App){
+
+        New-Service -Name "MediaStack-$($_App.name)" -DisplayName "MediaStack $($_App.name)" -Description "Used in the Automated MediaStack" -StartupType Automatic -BinaryPathName 
+    }
+    
+    hidden [void]_InstallApps([string]$Type){
+        if($this._Task -le $this.Config.system.$Type.Count){ # Tasks Not Finished
+            for($x=$this._Task; $x -lt $($this.Config.system.$Type.Count); $x++){ # Loop Install Tasks
+                try{
+                    $App_Task = $this.Config.system.$Type[$x] # Current Install Task
+
+                    $this._ParseAppInstallConfig($App_Task) # Create Setup file if required
+                    
+                    $this._Logger.WriteLog($env:INFO,"Installing App: $($_.name)")
+                    # Start the Installer
+                    Start-Process $_.path `
+                        -ArgumentList $_.args.split(' ') `
+                        -Wait `
+                        -ErrorAction Stop
+        
+                    # Set as Service
+                    if($App_Task.config.service){
+
+                    }
+
+                    if($App_Task.restart){ # Needs Restart
+                        $Stage = $null
+                        switch($Type){ # Set To Current Stage
+                            "DEPENDENCIES" { $Stage = [Stage]::DEP_INSTALL }
+                            "APPS" { $Stage = [Stage]::APP_INSTALL }
+                        }
+                        $this._SetRunOnce($Stage ,$x++) # Set to run Next Task in Current Stage
+                        Restart-Computer -Delay 5 -ErrorAction Stop # Restart after 5 Seconds
+                    }
+                }
+                catch{
+                    $this._Logger.WriteLog($env:ERROR,"Unable To install Application $($_.name)")
+                    $this._Logger.WriteLog($env:ERROR,$_.Exception.Message)
+                    Throw "Unable To install Application $($_.name)"
+                }
+            }
+        }
+        else{ # All Task has Finished Exit
+            $this._Logger.WriteLog($env:INFO,"All $Type Tasks have completed")
+            $this._Task = 0 # Reset Task Number
+        } 
+    }
+
+    hidden [void]_InstallMediaStackDependencies(){ # wrapper
+        Try{
+            $this._InstallApps("DEPENDENCIES") # Will Restart If Needed, this is just a wrapper
+        }
+        catch{ Throw $_.Exception.Message } # Surface Previous Errors, This is just a wrapper
+    }
+
+    <#hidden [void]_InstallMediaStackApps(){
         Try{
             $this._InstallApps("APPS")
         }
@@ -310,12 +388,20 @@ class MediaStack {
         }
     }#>
 
-####--------------####
 #### UTILTIES ####
+hidden [bool]_isInstalled([string]$_name){
+    if( ((Get-ChildItem HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall) | Where-Object { $_.GetValue("DisplayName") -like "*$_name*"}).count -ge 1){ return $true }
+    return $false
+}
 
 hidden [void]_SaveConfig([string]$config){
-    try{ 
-        $this._Logger.WriteLog($env:INFO, "Saving Config: $config")
+    try{
+        switch($config){
+            "user" { $this.Config.user.SETUP.DEFAULT_PASSWORD = ConvertFrom-SecureString (ConvertTo-SecureString -String $this.Config.user.SETUP.DEFAULT_PASSWORD -AsPlainText -Force) }
+            default { break }
+        }
+
+        $this._Logger.WriteLog($env:INFO, "Saving Config: $config")       
         (ConvertTo-Json $this.Config.$config -ErrorAction Stop) | Out-File "$env:APP_TEMP\$config-config.json" -ErrorAction Stop 
     }
     catch{
@@ -327,6 +413,7 @@ hidden [void]_SaveConfig([string]$config){
 
 hidden [void]_SetAutoLogin(){
     try{
+        $this._Logger.WriteLog($env:INFO, "Creating Auto Login Keys")
         $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon'
         Set-ItemProperty $regPath -Name "AutoAdminLogon" -Value "1" -ErrorAction Stop
         Set-ItemProperty $regPath -Name "DefaultUsername" -Value $this.Config.user.SETUP.DEFAULT_USER -ErrorAction Stop
@@ -340,6 +427,7 @@ hidden [void]_SetAutoLogin(){
 }
 
 hidden [void]_RemoveAutoLogin(){
+        $this._Logger.WriteLog($env:INFO, "Removing Auto Login Keys")
         $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\WinLogon'
         Remove-ItemProperty $regPath -Name "AutoAdminLogon" -ErrorAction SilentlyContinue
         Remove-ItemProperty $regPath -Name "DefaultUsername" -ErrorAction SilentlyContinue
@@ -357,14 +445,14 @@ hidden [void]_SetRunOnce([Stage]$Stage,[int]$Task){
         $command = @"
 using module "$PSScriptRoot\classes\MediaStack\MediaStack.psm1"
         
-`$MediaStack = [MediaStack]::new("$($env:APP_TEMP)\system-config.json","$($env:APP_TEMP)\user-config.json")
+`$MediaStack = [MediaStack]::new("$env:APP_TEMP\system-config.json","$env:APP_TEMP\user-config.json")
+`$MediaStack.Reload()
 `$MediaStack.SetStage($Stage)
 `$MediaStack.SetTask($Task)
 `$MediaStack.Setup()
         
 "@
-        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($command))
-        $this._SetRunOnce($encoded)
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($command)) # Convert to bas64 so strings do not get corrupted
         $this._Logger.WriteLog($env:INFO,"Setting RunOnce Key for User: $env:username")
         Set-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce' `
             -Name "ContinueMediaStackSetup" `
