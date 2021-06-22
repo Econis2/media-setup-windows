@@ -384,6 +384,7 @@ class MediaStack {
         Try{
             $this._InstallApps("APPS")
         }
+        
         catch{
             Throw $_.Exception.Message
         }
